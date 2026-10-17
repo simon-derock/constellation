@@ -4,7 +4,7 @@ Present tense of the build. Design: [`PLAN_SPEC.md`](PLAN_SPEC.md) · contract: 
 Read this first, update it last. Under 80 lines, no secrets, no narrative.
 
 ## Now
-- **Wave:** W1 Apex brain — evidence layer complete (74/78 raw, 74/74 audited); graph-backed absence + escalation, then W2 agent
+- **Wave:** W1 done — `python -m constellation.ingest.build_apex` builds brain:apex (verified pins, idempotent); W2 agent next
 - **Gate:** `scripts/gate.sh` green · 130+ tests · traceability 5/38 · commits only via `scripts/ship.sh`
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
 - **Last commit verified in CI:** see Actions; every push runs the full gate
@@ -23,9 +23,9 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `python -m constellation.ingest.fetch apex` verifies every byte.
 
 ## Next, in order
-1. Absence in the graph: EXPECTS edges with responded/search_space per silence pair; `absence.cypher`.
-2. Escalation chains (14 `escalation_chain` events) as ESCALATES_TO with day intervals.
-3. W2: agent FSM + MCP tools over the catalogue; trajectories scored by OrgForge's scorers (vendor them).
+1. W2: FastMCP tools from the catalogue (apex_cone, owner_as_of, counterfactual, absence, escalation_path).
+2. Agent FSM (PydanticAI, Workers AI model) with traces; vendor OrgForge scorers; first EpistemicBench run.
+3. Redwood: Kaggle job skeleton (fetch-and-verify, Qwen3-Embedding bulk embed).
 4. Kaggle job skeleton: Redwood fetch-and-verify inside the kernel.
 
 ## Decisions (one line each; `docs/adr/0001–0004` carry the why)
