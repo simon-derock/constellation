@@ -5,6 +5,7 @@ from constellation.brain.access import (
     born_days,
     event_artifacts,
 )
+from constellation.brain.causality import CausalEdge
 from constellation.brain.ownership import OwnershipFact
 from constellation.domain.ids import entity_id
 from constellation.graph.catalogue import cypher
@@ -26,6 +27,9 @@ _DOCUMENTS = """UNWIND $rows AS r MERGE (a:Artifact {doc_id: r.doc_id})
 SET a.id = r.id, a.kind = r.kind, a.title = r.title, a.body = r.body, a.row_day = r.row_day"""
 _PRODUCED = """UNWIND $rows AS r MATCH (e:Event {eid: r.eid}), (a:Artifact {doc_id: r.doc_id})
 MERGE (e)-[pr:PRODUCED {key: r.key}]->(a) SET pr.subsystem = r.subsystem"""
+
+_CAUSES = """UNWIND $rows AS r MATCH (c:Event {eid: r.cause}), (e:Event {eid: r.effect})
+MERGE (c)-[x:CAUSES {link_type: r.link_type}]->(e) SET x.day = r.day"""
 
 _OWNS = """UNWIND $rows AS r MERGE (p:Person {name: r.owner}) MERGE (d:Domain {name: r.domain})
 MERGE (p)-[o:OWNS {from: r.from}]->(d)
@@ -136,4 +140,12 @@ def load_ownership(port: WritePort, graph: str, facts: list[OwnershipFact]) -> N
             }
             for f in facts
         ],
+    )
+
+
+def load_causes(port: WritePort, graph: str, edges: list[CausalEdge]) -> None:
+    # events must already exist: a CAUSES edge never invents its endpoints
+    port.ensure_index(graph, "Event", "eid")
+    port.merge(
+        graph, _CAUSES, [{"cause": e.cause, "effect": e.effect, "link_type": e.link_type, "day": e.day} for e in edges]
     )
