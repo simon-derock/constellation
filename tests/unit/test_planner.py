@@ -124,3 +124,52 @@ def test_an_unresolvable_plan_hands_over_to_the_free_loop() -> None:
     q = Question("p", "PERSPECTIVE", "Would Alex have learned of it by Day 28?", actor="Alex", day=28, subsystems=())
     llm = LLM([text({"day": 28, "event_type": "incident_opened", "people": [], "target_type": ""})])
     assert run_planned(llm, Fake([]), q) is None
+
+
+def test_counterfactual_examines_every_candidate_not_just_the_top_few() -> None:
+    q = Question("c", "COUNTERFACTUAL", "Without the design-doc gap, would the incident still have happened?")
+    plan = {"day": 4, "event_type": "knowledge_gap_detected", "people": ["Jax"], "target_type": "incident_opened"}
+    events = [ev(f"G{i}", 4, "knowledge_gap_detected") for i in range(12)]
+    link = {"cause": "G11", "effect": "I8", "effect_type": "incident_opened", "mechanism": "doc_gap_detected"}
+    tools = Fake(events, {"G11": [link]})
+    run = run_planned(LLM([text(plan)]), tools, q)
+    assert run is not None
+    assert tools.log[-1] == "counterfactual:G11->I8:doc_gap_detected"
+
+
+def test_the_chooser_sees_each_links_cause_summary_and_mechanism() -> None:
+    seen: list[str] = []
+
+    class Spy(LLM):
+        def chat(self, messages: Sequence[dict[str, Any]], tools: Sequence[dict[str, Any]]) -> Reply:
+            seen.append(str(messages[-1]["content"]))
+            return super().chat(messages, tools)
+
+    q = Question("c", "COUNTERFACTUAL", "Without the design-doc gap, would the incident still have happened?")
+    plan = {"day": 4, "event_type": "knowledge_gap_detected", "people": [], "target_type": "incident_opened"}
+    links = {
+        "G1": [
+            {
+                "cause": "G1",
+                "effect": "I8",
+                "effect_type": "incident_opened",
+                "mechanism": "involves_gap",
+                "cause_summary": "Genesis gap seeded",
+            }
+        ],
+        "G2": [
+            {
+                "cause": "G2",
+                "effect": "I8",
+                "effect_type": "incident_opened",
+                "mechanism": "doc_gap_detected",
+                "cause_summary": "Knowledge gap detected in CONF-ENG-041",
+            }
+        ],
+    }
+    tools = Fake([ev("G1", 4, "knowledge_gap_detected"), ev("G2", 4, "knowledge_gap_detected")], links)
+    run = run_planned(Spy([text(plan), text({"option": "1"})]), tools, q)
+    assert run is not None
+    assert "Knowledge gap detected in CONF-ENG-041" in seen[-1]
+    assert "doc_gap_detected" in seen[-1]
+    assert tools.log[-1] == "counterfactual:G2->I8:doc_gap_detected"

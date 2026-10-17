@@ -8,6 +8,7 @@ from constellation.agents.epistemic import LLM, RESPONSE_TYPES, AgentRun, Questi
 # tier 2 of PLAN_SPEC §11: the model states what to look for; reviewed catalogue calls do the looking
 _DAY_RANGE = range(-1_000, 1_001)
 _MAX_CANDIDATES = 5
+_MAX_LINKS = 20
 _TARGET = {
     "PERSPECTIVE": "target_type is ''",
     "SILENCE": "event_type is the triggering event; target_type is the expected response that may be missing",
@@ -98,10 +99,12 @@ def run_planned(llm: LLM, tools: Tools, q: Question) -> AgentRun | None:
     if plan is None:
         return None
     found = tools.find_events(plan.day, plan.event_type, list(plan.people))
-    candidates = [c for c in found if not c.get("no_match")][:_MAX_CANDIDATES]
+    candidates = [c for c in found if not c.get("no_match")]
     run = AgentRun(answer={}, stop_reason="planned")
     if q.qtype == "COUNTERFACTUAL":
+        # the link filter is a cheap graph read, so every candidate is examined before any is dropped
         return _counterfactual(llm, tools, q, plan, candidates, run)
+    candidates = candidates[:_MAX_CANDIDATES]
     target = _choose(llm, q, candidates, "event")
     if target is None:
         return None
@@ -129,6 +132,7 @@ def _counterfactual(
         for link in tools.causal_links(str(c["event"]))
         if link["cause"] == c["event"] and plan.target_type in ("", link["effect_type"])
     ]
+    viable = viable[:_MAX_LINKS]
     for i, link in enumerate(viable):
         link["option"] = str(i)
     picked = _choose(llm, q, viable, "option")

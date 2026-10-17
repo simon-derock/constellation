@@ -150,3 +150,10 @@ def test_the_event_vocabulary_is_read_from_the_graph_and_not_recorded(port: Read
     assert {"incident_opened", "knowledge_gap_detected", "design_discussion"} <= set(kinds)
     assert kinds == sorted(kinds)
     assert tools.calls == []
+
+
+def test_causal_links_carry_the_causes_summary_for_choosing_between_them(port: ReadPort) -> None:
+    links = Toolbox(port, GRAPH).causal_links("EVT-4-knowledge_gap_detected-586")
+    assert links
+    assert all(isinstance(link["cause_summary"], str) for link in links)
+    assert any(link["cause_summary"] for link in links)
