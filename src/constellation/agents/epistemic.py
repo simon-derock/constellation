@@ -71,7 +71,8 @@ SPECS = {
     ),
     "candidate_links": _spec(
         "candidate_links",
-        "Cause->effect links from events on a day. Rows: cause, mechanism, effect, why.",
+        "Cause->effect links from events on a day. A mechanism fixes the types; else event_type/target_type filter. "
+        "Rows: cause, mechanism, effect, why.",
         {
             "day": {"type": "integer"},
             "event_type": _TYPE,
@@ -79,7 +80,7 @@ SPECS = {
             "target_type": _TYPE,
             "mechanism": {"type": "string", "enum": sorted(MECH_GLOSS)},
         },
-        ["day", "event_type"],
+        ["day"],
     ),
     "could_have_known": _spec(
         "could_have_known", "Could the actor have known this event by the as-of day?", {"event": _EVENT}, ["event"]
@@ -135,8 +136,8 @@ PROCESS = {
         "that may be missing."
     ),
     "COUNTERFACTUAL": (
-        "Action 1: candidate_links(day, event_type, people, target_type); set mechanism when the wording implies "
-        "one, and pick the row whose why matches the question. Action 2: counterfactual with that row's ids. "
+        "Action 1: candidate_links(day, people, mechanism); name the mechanism the wording implies (it fixes the event "
+        "types), then pick the row whose why matches the question. Action 2: counterfactual with that row's ids. "
         "Mechanisms: " + "; ".join(f"{name}={gloss}" for name, gloss in MECH_GLOSS.items()) + "."
     ),
 }

@@ -216,3 +216,17 @@ def test_a_made_up_event_id_is_refused_with_a_correctable_error_and_records_noth
     with pytest.raises(ValueError, match="unknown event id"):
         getattr(tools, call)(*args)
     assert tools.calls == []
+
+
+def test_a_named_mechanism_decides_the_types_so_a_wrong_type_guess_cannot_hide_the_link(port: ReadPort) -> None:
+    rows = Toolbox(port, GRAPH).candidate_links(
+        4, "design_discussion", [], target_type="confluence_created", mechanism="doc_gap_detected"
+    )
+    assert TRUE_CAUSE in {r["cause"] for r in rows}
+    assert {r["mechanism"] for r in rows} == {"doc_gap_detected"}
+
+
+def test_without_a_mechanism_the_type_filters_still_apply(port: ReadPort) -> None:
+    rows = Toolbox(port, GRAPH).candidate_links(4, "design_discussion", [])
+    assert rows
+    assert {r["mechanism"] for r in rows} == {"spawned_doc"}
