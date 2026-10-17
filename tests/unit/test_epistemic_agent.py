@@ -20,9 +20,11 @@ class ScriptedLLM:
     def __init__(self, replies: list[Reply]) -> None:
         self.replies = replies
         self.seen_tools: list[list[str]] = []
+        self.seen_messages: list[list[dict[str, Any]]] = []
 
     def chat(self, messages: Sequence[dict[str, Any]], tools: Sequence[dict[str, Any]]) -> Reply:
         self.seen_tools.append([t["function"]["name"] for t in tools])
+        self.seen_messages.append(list(messages))
         return self.replies.pop(0)
 
 
@@ -154,3 +156,11 @@ def test_counterfactual_questions_get_a_larger_step_budget() -> None:
     from constellation.agents.epistemic import STEP_BUDGET
 
     assert STEP_BUDGET["COUNTERFACTUAL"] > STEP_BUDGET["SILENCE"]
+
+
+def test_the_loop_warns_two_steps_before_its_budget_ends() -> None:
+    llm = ScriptedLLM([call("find_events", day=d) for d in range(1, 7)] + [final({"exists": False, "answer": "no"})])
+    answer(llm, StubTools(), SILENCE, max_steps=6)
+    warned = [i for i, m in enumerate(llm.seen_messages) if any("Two steps left" in str(x.get("content")) for x in m)]
+    assert warned
+    assert warned[0] == 4

@@ -77,14 +77,14 @@ def test_perspective_tools_refuse_to_run_without_a_perspective(port: ReadPort) -
         Toolbox(port, GRAPH).could_have_known("EVT-8-incident_opened-1219")
 
 
-def test_event_linking_narrows_by_type_and_actors_and_reveals_no_artifacts(port: ReadPort) -> None:
+def test_event_linking_ranks_named_people_first_and_reveals_no_artifacts(port: ReadPort) -> None:
     tools = Toolbox(port, GRAPH)
     found = tools.find_events(8, "incident_opened", ["Jax"])
     assert found
-    for event in found:
-        assert event["type"] == "incident_opened"
-        assert isinstance(event["actors"], list)
-        assert "Jax" in event["actors"]
+    assert all(event["type"] == "incident_opened" for event in found)
+    top = found[0]["actors"]
+    assert isinstance(top, list)
+    assert "Jax" in top
     assert tools.calls[-1].result_ids == ()
 
 
@@ -132,3 +132,13 @@ def test_counterfactual_names_the_people_on_both_events(port: ReadPort) -> None:
     assert result["linked"] is True
     assert isinstance(result["actors"], list)
     assert result["actors"]
+
+
+def test_people_linked_through_a_shared_artifact_rank_an_event_without_excluding_it(port: ReadPort) -> None:
+    rows = Toolbox(port, GRAPH).find_events(4, "knowledge_gap_detected", ["Jax"])
+    assert len(rows) > 1
+    linked = [r for r in rows if r["via_artifacts"] == ["Jax"]]
+    assert linked
+    # ranked: events that reach Jax directly or through an artifact come before events that do not reach him
+    reach = [bool(r["via_artifacts"]) or "Jax" in str(r["actors"]) for r in rows]
+    assert reach == sorted(reach, reverse=True)

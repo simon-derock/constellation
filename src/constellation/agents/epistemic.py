@@ -49,7 +49,9 @@ _EVENT = {"type": "string", "description": "event id returned by find_events"}
 SPECS = {
     "find_events": _spec(
         "find_events",
-        "Find simulation events on a day, optionally by event type and the people involved. Returns event ids.",
+        "Find simulation events on a day, optionally by event type. Named people rank events: first those "
+        "directly involved, then those linked through a shared artifact (a doc they wrote, a thread). "
+        "Returns ids and summaries.",
         {
             "day": {"type": "integer", "description": "simulation day number"},
             "event_type": {"type": "string", "description": "e.g. incident_opened, design_discussion; '' for any"},
@@ -188,6 +190,9 @@ def answer(llm: LLM, tools: object, q: Question, max_steps: int | None = None) -
             seen.add(key)
             content = _invoke(run, tools, name, raw_args, allowed)
         messages.append({"role": "tool", "tool_call_id": tool_call.get("id", name), "content": content})
+        if budget - run.steps == 2:
+            # a bounded loop says so before it ends, so the decisive tool is called rather than lost
+            messages.append({"role": "user", "content": "Two steps left: call the decisive tool now, then answer."})
     final = llm.chat([*messages, {"role": "user", "content": "Stop using tools. Reply with only the JSON object."}], [])
     run.answer, run.stop_reason = _parse(final.content) or {}, "budget exhausted"
     return _verify(run, q)
