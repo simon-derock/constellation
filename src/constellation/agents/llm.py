@@ -85,7 +85,8 @@ class WorkersAI:
         if tools:
             body["tools"], body["tool_choice"] = list(tools), "auto"
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        status = 0
+        status: int = 0
+        payload: dict[str, Any] = {}
         for attempt in range(_ATTEMPTS):
             start = time.perf_counter()
             status, payload = self.transport(self._url, headers, json.dumps(body).encode())
@@ -95,7 +96,7 @@ class WorkersAI:
                 break
             # same model, exponential backoff: a run never changes model mid-question
             self.sleep(2.0**attempt)
-        raise LLMError(f"{self.lock.model} failed with HTTP {status}")
+        raise LLMError(f"{self.lock.model} failed with HTTP {status}: {_provider_error(payload)}")
 
     def _reply(self, payload: dict[str, Any], latency_ms: float) -> Reply:
         message = payload["choices"][0]["message"]
@@ -103,4 +104,16 @@ class WorkersAI:
         self.usage.append(
             Usage(int(tokens.get("prompt_tokens", 0)), int(tokens.get("completion_tokens", 0)), latency_ms)
         )
-        return Reply(str(message.get("content") or ""), tuple(message.get("tool_calls") or ()), message)
+        content, calls = str(message.get("content") or ""), tuple(message.get("tool_calls") or ())
+        # echo back only what the endpoint accepts as input; providers add null fields it then rejects
+        clean: dict[str, Any] = {"role": "assistant", "content": content}
+        if calls:
+            clean["tool_calls"] = list(calls)
+        return Reply(content, calls, clean)
+
+
+def _provider_error(payload: dict[str, Any]) -> str:
+    # provider messages describe the request, never our credentials; capped so a huge body cannot flood logs
+    errors = payload.get("errors") or [payload.get("error") or {}]
+    messages = [str(e.get("message", e)) if isinstance(e, dict) else str(e) for e in errors]
+    return "; ".join(m for m in messages if m)[:300] or "no error body"

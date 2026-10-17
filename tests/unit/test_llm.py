@@ -73,3 +73,24 @@ def test_the_token_never_appears_in_errors() -> None:
 def test_the_real_transport_refuses_any_url_outside_the_provider_origin(url: str) -> None:
     with pytest.raises(LLMError, match="origin"):
         https_transport(url, {}, b"{}")
+
+
+def test_echoed_assistant_messages_carry_only_role_content_and_tool_calls() -> None:
+    noisy = {
+        "role": "assistant",
+        "content": None,
+        "refusal": None,
+        "audio": None,
+        "function_call": None,
+        "tool_calls": [{"id": "t1", "type": "function", "function": {"name": "f", "arguments": "{}"}}],
+    }
+    reply = client(Scripted([(200, {"choices": [{"message": noisy}], "usage": {}})])).chat([], tools=[])
+    assert set(reply.message) == {"role", "content", "tool_calls"}
+    assert reply.message["content"] == ""
+
+
+def test_provider_errors_are_reported_without_the_token() -> None:
+    body = {"errors": [{"message": "Invalid input: unexpected key 'audio'"}]}
+    with pytest.raises(LLMError, match="unexpected key 'audio'") as err:
+        client(Scripted([(400, body)])).chat([], tools=[])
+    assert "secret-token" not in str(err.value)
