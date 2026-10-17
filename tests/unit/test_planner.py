@@ -173,3 +173,12 @@ def test_the_chooser_sees_each_links_cause_summary_and_mechanism() -> None:
     assert "Knowledge gap detected in CONF-ENG-041" in seen[-1]
     assert "doc_gap_detected" in seen[-1]
     assert tools.log[-1] == "counterfactual:G2->I8:doc_gap_detected"
+
+
+def test_a_choice_returned_as_a_number_still_matches_its_string_id() -> None:
+    q = Question("p", "PERSPECTIVE", "Would Alex have learned of it by Day 28?", actor="Alex", day=28, subsystems=())
+    plan = {"day": 28, "event_type": "incident_opened", "people": [], "target_type": ""}
+    tools = Fake([ev("1", 28, "incident_opened"), ev("2", 28, "incident_opened")])
+    run = run_planned(LLM([text(plan), text({"event": 2})]), tools, q)
+    assert run is not None
+    assert tools.log[-1] == "could_have_known:2"

@@ -83,7 +83,8 @@ def _choose(llm: LLM, q: Question, options: Sequence[Mapping[str, Any]], key: st
             f'{q.text}\n\nCandidates:\n{listing}\n\nRespond with only JSON: {{"{key}": "<id>"}}',
         )
         picked = raw.get(key) if raw else None
-        match = next((o for o in options if o[key] == picked), None)
+        # models often return numeric ids as numbers; ids are compared as text
+        match = next((o for o in options if picked is not None and str(o[key]) == str(picked)), None)
         if match is not None:
             return match
     return None
