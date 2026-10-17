@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+data
+results/raw
+tests
+tools
+docs
+video
+web
+**/__pycache__
+**/*.pyc
+INTERNAL.md
+.env
+.env.*

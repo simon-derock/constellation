@@ -1,0 +1,21 @@
+# Render blueprint: one free web service running FalkorDB beside the API (see deploy/Dockerfile)
+services:
+  - type: web
+    name: constellation-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    healthCheckPath: /ready
+    autoDeploy: true
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://constellation.philipsimonderock.com
+      - key: SNAPSHOT_URL
+        sync: false
+      - key: SNAPSHOT_SHA256
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
