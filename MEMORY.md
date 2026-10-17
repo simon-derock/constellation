@@ -4,7 +4,7 @@ Present tense of the build. Design: [`PLAN_SPEC.md`](PLAN_SPEC.md) · contract: 
 Read this first, update it last. Under 80 lines, no secrets, no narrative.
 
 ## Now
-- **Wave:** W1 Apex brain — cone, ownership, causality in FalkorDB; SILENCE (absence) next
+- **Wave:** W1 Apex brain — evidence layer complete (74/78 raw, 74/74 audited); graph-backed absence + escalation, then W2 agent
 - **Gate:** `scripts/gate.sh` green · 130+ tests · traceability 5/38 · commits only via `scripts/ship.sh`
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
 - **Last commit verified in CI:** see Actions; every push runs the full gate
@@ -18,14 +18,14 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 | AC-T3-02 who owned what | Partial | `owner_as_of` ≡ timeline at every boundary, 10 domains; registry-only starts flagged |
 | AC-T3-03 who could know | Partial | Cypher cone ≡ oracle, every internal actor × 5 days |
 | all others (34) | Missing | — |
-| (port check) | Done | access 30/30 PERSPECTIVE; causality 21/21 links, 17/21 outcomes (4 gold disputes) — `docs/audits/` |
+| (evidence layer) | Done | PERSPECTIVE 30/30 · COUNTERFACTUAL links 21/21, outcomes 17/21 (4 gold disputes) · SILENCE 27/27 + spaces 27/27 — `docs/audits/` |
 
 Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `python -m constellation.ingest.fetch apex` verifies every byte.
 
 ## Next, in order
-1. SILENCE: vendor OrgForge's absence rules; search-space query that returns what was searched.
+1. Absence in the graph: EXPECTS edges with responded/search_space per silence pair; `absence.cypher`.
 2. Escalation chains (14 `escalation_chain` events) as ESCALATES_TO with day intervals.
-3. W2: agent FSM + MCP tools over the catalogue (cone, owner_as_of, counterfactual, absence).
+3. W2: agent FSM + MCP tools over the catalogue; trajectories scored by OrgForge's scorers (vendor them).
 4. Kaggle job skeleton: Redwood fetch-and-verify inside the kernel.
 
 ## Decisions (one line each; `docs/adr/0001–0004` carry the why)
