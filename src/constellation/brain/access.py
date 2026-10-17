@@ -72,6 +72,8 @@ class SimEvent:
     artifact_ids: tuple[tuple[str, str], ...]
     event_id: str = ""
     spawned_doc: bool = False
+    # the simulator's own one-line account of the event; linking evidence, never a decision input
+    summary: str = ""
 
 
 # eval_harness.py:333 _safe_artifact_values — on-disk paths are not artifacts anyone reads

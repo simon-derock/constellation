@@ -66,6 +66,13 @@ def roles_from_config(path: Path) -> dict[str, str]:
     return roles
 
 
+def _summary(body: str | None) -> str:
+    for line in (body or "").splitlines():
+        if line.startswith("summary: "):
+            return line.removeprefix("summary: ").strip()
+    return ""
+
+
 def _spawned_doc(facts: str | None) -> bool:
     if not facts:
         return False
@@ -83,6 +90,7 @@ def load_apex(corpus: Path, config: Path) -> ApexCorpus:
             artifact_ids=parse_artifact_ids(row["artifact_ids"]),
             event_id=row["doc_id"],
             spawned_doc=_spawned_doc(row["facts"]),
+            summary=_summary(row.get("body")),
         )
         for row in frame.filter(pl.col("category") == "sim_event").iter_rows(named=True)
     )

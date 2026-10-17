@@ -59,3 +59,24 @@ def test_loader_splits_events_from_artifacts(tmp_path: Path) -> None:
     assert apex.events[0].artifact_ids == (("slack", "su-1"),)
     assert [a.doc_id for a in apex.artifacts] == ["CONF-1"]
     assert apex.roles == {"Jax": "engineering_backend"}
+
+
+def test_events_carry_the_simulators_one_line_summary(tmp_path: Path) -> None:
+    corpus = tmp_path / "c.parquet"
+    pl.DataFrame(
+        {
+            "doc_id": ["EVT-1-standup-1"],
+            "doc_type": ["standup"],
+            "category": ["sim_event"],
+            "day": [1],
+            "timestamp": ["2026-01-02T09:00:00"],
+            "actors": ['["Jax"]'],
+            "artifact_ids": ['{"slack": "su-1"}'],
+            "facts": ["{}"],
+            "title": ["Standup"],
+            "body": ["event_type: standup\nsummary: Jax ran standup.\nactors: Jax"],
+        }
+    ).write_parquet(corpus)
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text("org_chart:\n  Engineering_Backend: [Jax]\norg_lifecycle: {}\n")
+    assert load_apex(corpus, cfg).events[0].summary == "Jax ran standup."

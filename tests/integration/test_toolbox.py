@@ -6,6 +6,7 @@ from falkordb import FalkorDB
 
 from constellation.agents.toolbox import Perspective, Toolbox
 from constellation.brain.access import born_days, could_have_known, visible_artifacts
+from constellation.graph.catalogue import cypher
 from constellation.graph.read import ReadPort
 from constellation.ingest.apex import ApexCorpus, load_apex
 from constellation.ingest.build_apex import build
@@ -100,3 +101,34 @@ def test_dead_ends_are_marked_so_recovery_can_be_scored(port: ReadPort) -> None:
     tools.find_events(8, "no_such_event_type")
     tools.find_events(8, "incident_opened")
     assert [c.empty for c in tools.calls] == [True, False]
+
+
+def test_event_lookups_carry_summaries_for_disambiguation(port: ReadPort) -> None:
+    found = Toolbox(port, GRAPH).find_events(8, "incident_opened")
+    assert found
+    assert all(isinstance(e["summary"], str) and e["summary"] for e in found)
+
+
+def test_a_days_event_types_are_listed_for_correcting_a_failed_lookup(port: ReadPort) -> None:
+    rows = port.run(GRAPH, cypher("event_types_on_day"), {"day": 4}).rows
+    assert ("knowledge_gap_detected",) in {(r[0],) for r in rows}
+
+
+def test_a_failed_lookup_returns_the_days_event_types(port: ReadPort) -> None:
+    tools = Toolbox(port, GRAPH)
+    rows = tools.find_events(4, "design_doc_gap")
+    assert rows[0]["no_match"] is True
+    kinds = rows[0]["event_types_on_day"]
+    assert isinstance(kinds, list)
+    assert "knowledge_gap_detected" in kinds
+    assert tools.calls[-1].empty is True
+
+
+def test_counterfactual_names_the_people_on_both_events(port: ReadPort) -> None:
+    links = Toolbox(port, GRAPH).causal_links("EVT-8-incident_opened-1219")
+    assert links
+    first = links[0]
+    result = Toolbox(port, GRAPH).counterfactual(str(first["cause"]), str(first["effect"]), str(first["mechanism"]))
+    assert result["linked"] is True
+    assert isinstance(result["actors"], list)
+    assert result["actors"]

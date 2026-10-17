@@ -74,8 +74,14 @@ class Toolbox:
         args = {"day": day, "event_type": event_type, "actors": list(actors)}
         result = self._run("find_events", args)
         rows = [dict(zip(result.columns, row, strict=True)) for row in result.rows]
+        proofs = [result.sha256]
+        if not rows:
+            # a failed lookup comes back with the day's event types so the next lookup can be corrected
+            kinds = self._run("event_types_on_day", {"day": day})
+            rows = [{"no_match": True, "event_types_on_day": [str(r[0]) for r in kinds.rows]}]
+            proofs.append(kinds.sha256)
         # events are not artifacts: linking an event reveals no artifact content
-        self._record("find_events", args, [], [], [result.sha256], t0, empty=not rows)
+        self._record("find_events", args, [], [], proofs, t0, empty="no_match" in rows[0])
         return rows
 
     def event_artifacts(self, event: str) -> list[dict[str, Value]]:
@@ -110,17 +116,25 @@ class Toolbox:
         made = set(born)
         missed = {a for a in made - cone if _day_or_never(born[a]) <= p.day}
         met = {str(r[0]) for r in shared.rows} & cone
-        kind, _day, spawned, page_in_corpus = info.rows[0] if info.rows else ("", 0, False, False)
+        kind, _day, spawned, page_in_corpus, _actors = info.rows[0] if info.rows else ("", 0, False, False, [])
         published = (
             kind == "design_discussion" and spawned and page_in_corpus and "confluence" in subsystem_access(p.role)
         )
         known = not missed or bool(met) or bool(published)
         evidence = sorted((made & cone) | met)
+        # subsystem names, never artifact ids: what the role could not open, which reveals no content
+        event_subsystems = {str(r[2]) for r in produced.rows if r[2] != "default"}
+        blocked = sorted(event_subsystems - subsystem_access(p.role))
         proofs = [cone_proof, produced.sha256, info.sha256, shared.sha256]
         self._record(
             "could_have_known", {"event": event}, evidence, ["artifact"] * len(evidence), proofs, t0, empty=False
         )
-        return {"could_actor_have_known": known, "evidence_artifacts": list(evidence), "missed_count": len(missed)}
+        return {
+            "could_actor_have_known": known,
+            "evidence_artifacts": list(evidence),
+            "blocked_subsystems": list(blocked),
+            "missed_count": len(missed),
+        }
 
     def causal_links(self, event: str) -> list[dict[str, Value]]:
         t0 = time.perf_counter()
@@ -135,8 +149,21 @@ class Toolbox:
         result = self._run("counterfactual", args)
         linked, alternatives = result.rows[0] if result.rows else (False, [])
         alts = [str(a) for a in alternatives] if isinstance(alternatives, list) else []
-        self._record("counterfactual", args, [], [], [result.sha256], t0, empty=not linked)
-        return {"linked": linked, "outcome_changed": bool(linked) and not alts, "alternative_causes": list(alts)}
+        people: set[str] = set()
+        proofs = [result.sha256]
+        for event in (cause, effect):
+            info = self._run("event_info", {"event": event})
+            proofs.append(info.sha256)
+            names = info.rows[0][4] if info.rows else []
+            people |= {str(n) for n in names} if isinstance(names, list) else set()
+        self._record("counterfactual", args, [], [], proofs, t0, empty=not linked)
+        actors: list[Value] = [*sorted(people)]
+        return {
+            "linked": linked,
+            "outcome_changed": bool(linked) and not alts,
+            "alternative_causes": list(alts),
+            "actors": actors,
+        }
 
     def absence(self, trigger: str, response_type: str) -> dict[str, Value]:
         t0 = time.perf_counter()
