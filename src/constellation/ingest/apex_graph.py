@@ -5,6 +5,7 @@ from constellation.brain.access import (
     born_days,
     event_artifacts,
 )
+from constellation.brain.ownership import OwnershipFact
 from constellation.domain.ids import entity_id
 from constellation.graph.catalogue import cypher
 from constellation.graph.write import WritePort
@@ -25,6 +26,10 @@ _DOCUMENTS = """UNWIND $rows AS r MERGE (a:Artifact {doc_id: r.doc_id})
 SET a.id = r.id, a.kind = r.kind, a.title = r.title, a.body = r.body, a.row_day = r.row_day"""
 _PRODUCED = """UNWIND $rows AS r MATCH (e:Event {eid: r.eid}), (a:Artifact {doc_id: r.doc_id})
 MERGE (e)-[pr:PRODUCED {key: r.key}]->(a) SET pr.subsystem = r.subsystem"""
+
+_OWNS = """UNWIND $rows AS r MERGE (p:Person {name: r.owner}) MERGE (d:Domain {name: r.domain})
+MERGE (p)-[o:OWNS {from: r.from}]->(d)
+SET o.to = r.to, o.origin = r.origin, o.evidence = r.evidence, o.start_known = r.start_known"""
 
 _INDEXES = (
     ("Person", "name"),
@@ -108,5 +113,27 @@ def load_into(port: WritePort, graph: str, apex: ApexCorpus) -> None:
             for e in apex.events
             for key, aid in sorted(set(e.artifact_ids))
             if aid in born
+        ],
+    )
+
+
+def load_ownership(port: WritePort, graph: str, facts: list[OwnershipFact]) -> None:
+    # an open interval stores no `to`: absent, not a sentinel, so `o.to IS NULL` means "still holds"
+    port.ensure_index(graph, "Person", "name")
+    port.ensure_index(graph, "Domain", "name")
+    port.merge(
+        graph,
+        _OWNS,
+        [
+            {
+                "owner": f.owner,
+                "domain": f.domain,
+                "from": f.interval.start,
+                "to": f.interval.end,
+                "origin": f.origin,
+                "evidence": f.evidence,
+                "start_known": f.start_known,
+            }
+            for f in facts
         ],
     )
