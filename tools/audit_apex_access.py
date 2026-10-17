@@ -19,9 +19,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     born = born_days(apex.events)
     by_id = {e.event_id: e for e in apex.events}
     corpus_ids = frozenset(a.doc_id for a in apex.artifacts)
-    questions = [
-        json.loads(line) for line in (args.raw / "questions/eval_questions.jsonl").read_text().splitlines()
-    ]
+    questions = [json.loads(line) for line in (args.raw / "questions/eval_questions.jsonl").read_text().splitlines()]
     perspective = [q for q in questions if q["question_type"] == "PERSPECTIVE"]
     disagreements = [
         q["question_id"]
