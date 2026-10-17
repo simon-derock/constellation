@@ -1,0 +1,86 @@
+{
+  "apex": {
+    "repo": "aeriesec/orgforge",
+    "revision": "f2a1ab2ac94043f20ad4d15fc2bbc60c09332656",
+    "licence": "MIT",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1071,
+        "sha256": "762ed36bca553ca9447b02557757f955bd4757f5ab3f908c613c23baa1990cc7"
+      },
+      {
+        "path": "README.md",
+        "size": 16915,
+        "sha256": "9fc553162a9fb6887deee794e08e791c83a7236621a8c865a69d201da45aec19"
+      },
+      {
+        "path": "eval.yaml",
+        "size": 7412,
+        "sha256": "790cb75f7186ca5d47ade35594bc103f96ec62f5d632c79443197c71b0a09cd2"
+      },
+      {
+        "path": "corpus/corpus-00000.parquet",
+        "size": 8178521,
+        "sha256": "b98386f617bf2a402f95d8d6023843ce74b56cf407ca653734639576db50d00e"
+      },
+      {
+        "path": "questions/eval_questions.jsonl",
+        "size": 85742,
+        "sha256": "08fe4a55dfc64dd4cf065719ba9ad7d66fb1169b133793edb51c504660ddc35d"
+      },
+      {
+        "path": "leaderboard/leaderboard.csv",
+        "size": 1187,
+        "sha256": "74eebdfeda4102e70b4dba02a311e6eb0c6f30835433084580c78180ff00cebb"
+      },
+      {
+        "path": "supplemental/assignment_scores.parquet",
+        "size": 19884,
+        "sha256": "521a13725202f160656c77b4261eac75b2438ad27f0d07e2222f5069bea9c544"
+      },
+      {
+        "path": "supplemental/datadog_metrics.parquet",
+        "size": 216692,
+        "sha256": "caffce423c761ee702e83794cd782995e69abd953e0461089028a425a59bb834"
+      },
+      {
+        "path": "supplemental/domain_registry.json",
+        "size": 9461,
+        "sha256": "eba7505f72002a4a3cd864afa5667cf9db4aa1d671cc828f6a1c3fc01a00c32e"
+      },
+      {
+        "path": "supplemental/sim_config.json",
+        "size": 25414,
+        "sha256": "4219d458902a82899d025e63d1875140a7e17bdde03424fa3af5fd20d8f22692"
+      },
+      {
+        "path": "supplemental/simulation_snapshot.json",
+        "size": 15109019,
+        "sha256": "7af9e5e43dad24d9c8fc920b0f19f28a6ee26908373cc9082e60a09fc3703a30"
+      }
+    ]
+  },
+  "redwood": {
+    "repo": "onyx-dot-app/EnterpriseRAG-Bench",
+    "revision": "69916e31c68aa5963c00248fd7f0bc12d04fd235",
+    "licence": "MIT",
+    "files": [
+      {
+        "path": "README.md",
+        "size": 6932,
+        "sha256": "946d5c5c06ea3a2ddd0064ed2296498b15ed0d9721dac94ea605918959f25932"
+      },
+      {
+        "path": "data/questions/test.parquet",
+        "size": 408737,
+        "sha256": "e25066f4eff3843dd0f3df0d1348113471e072e75007ffe390a0aa83f2a80af2"
+      },
+      {
+        "path": "data/documents/test.parquet",
+        "size": 1409893131,
+        "sha256": "6b0747bf160af9427b12101537d53056ac592ada9831c1a98ae01fa50a8d2a9f"
+      }
+    ]
+  }
+}
