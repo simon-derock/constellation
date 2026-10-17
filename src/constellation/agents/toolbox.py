@@ -65,6 +65,10 @@ class Toolbox:
         gated = tuple(prefix + "-" for prefix in JIRA_PROJECT_ACCESS)
         return frozenset(i for i in ids if not i.startswith(gated) or jira_project_visible(i, p.role)), result.sha256
 
+    def visible(self) -> frozenset[str]:
+        # the cone the tools enforce, exposed so scoring judges against the same boundary
+        return self._cone()[0]
+
     def find_events(self, day: int, event_type: str = "", actors: Sequence[str] = ()) -> list[dict[str, Value]]:
         t0 = time.perf_counter()
         args = {"day": day, "event_type": event_type, "actors": list(actors)}
