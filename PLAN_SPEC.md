@@ -126,6 +126,16 @@ If FalkorDB is removed, nothing works:
 - Permission bitmaps are Redis keys on the same server, derived from graph edges and checked against them.
 - Vector and full-text search run on FalkorDB's own indexes.
 - The live tenant is FalkorDB's own open-source organisation.
+
+### 1.3 The five walls
+
+| Wall | What it is | Why it is hard to match |
+|---|---|---|
+| **Truth** | Scored by answer keys we did not write: EpistemicBench and EnterpriseRAG-Bench, both with public leaderboards. Constructed suites are labelled as constructed | A self-made demo proves nothing; an external key does |
+| **Bits** | Permissions compiled to exact bitmaps, checked before ranking and again before the prompt; bitmap ≡ graph proven by property tests | Zero leaks is an invariant, not a filter |
+| **Proof** | Every answer replays: query, parameters, result hash, character and millisecond spans. Manifests on every artifact; the scoreboard reads from a ledger | Anyone can re-run any answer and get the same bytes |
+| **Voice** | Meetings exist as speech: playable decision provenance, speech-to-graph fidelity, voice identity, spoken-only expertise | A text-only brain cannot cite the second a decision was spoken |
+| **FalkorDB-native** | Algorithms as tools, `GRAPH.COPY` tenancy, a `GRAPH.RO_QUERY` read path, bitmaps and streams on the same server, MCP, both engine lines tested; the live tenant is FalkorDB's own organisation | Remove FalkorDB and nothing remains |
 [/SPEC:MISSION]
 
 ---
@@ -185,6 +195,7 @@ If FalkorDB is removed, nothing works:
 - Validation of FalkorDB engine 6.x beyond a smoke matrix. 4.22.x is primary.
 - Arbitrary uploads from users, multi-organisation self-service sign-up, SSO.
 - Learned routing policies (RL), fine-tuned models.
+- Serving Redwood from the hosted API. Its 512k documents exceed free-tier memory; it ships as recorded runs and local replay ([SPEC:DEPLOY]).
 
 ### 3.3 Non-goals
 
@@ -630,6 +641,11 @@ flowchart LR
 
 1. **Fetch.** Every raw record is written to an append-only log, keyed by `sha256(source, native_id, content)`.
 2. **Normalise.** Each source has a pure function that turns a raw record into typed domain events, covering artifacts, people, spaces, membership, ownership, mentions and claims.
+   - **Chunking is structure-native and deterministic.** A chunk is what the source already delimits: one chat message with its thread pointer, one email, one ticket with its comments, one wiki section by heading, one meeting turn window, one PR description or review.
+   - Long units split at headings, then paragraphs, under a token cap. Neighbours link by `NEXT` instead of duplicated overlap.
+   - Every chunk carries a header (title, space, author alias, day), so it reads correctly on its own.
+   - No model decides boundaries; the sources already did. Models are spent where they add signal: claim and decision extraction (step 6).
+   - Apex and the live tenant chunk locally in seconds; Redwood chunks on Kaggle CPU ([SPEC:BATCH]).
 3. **Identity.**
    - IDs are `UUIDv5(namespace(tenant), natural_key)`.
    - People are resolved on native IDs first, then on scored alias evidence.
@@ -642,7 +658,7 @@ flowchart LR
    - Any derived index can be rebuilt from the graph and the log.
 6. **Extract** (Redwood and free text).
    - Deterministic extractors run first: identifiers, ticket keys, PR numbers, emails, @-handles, dates.
-   - LLM extraction runs only on the self-hosted batch model.
+   - Model extraction of claims and decisions runs only on the self-hosted batch model, on Kaggle.
    - An extracted edge is accepted only if its quote is an exact substring of its source span.
 7. **Live sync** (FalkorDB OSS).
    - GitHub REST/GraphQL with ETags and an `updated_at` cursor.
@@ -658,7 +674,7 @@ flowchart LR
 ```text
 query ─▶ principal bitmap (Redis BITOP over the principal's Spaces, as of D)
        ─▶ lexical  (FalkorDB full-text for Apex/live; BM25 sidecar for Redwood full text)
-       ─▶ dense    (FalkorDB vector index, MRL-truncated EmbeddingGemma 2)
+       ─▶ dense    (FalkorDB vector index, EmbeddingGemma 300M, MRL-truncated)
        ─▶ fusion   (reciprocal rank fusion, k=60; weights fixed by ablation, not tuned per question)
        ─▶ graph expansion (NEXT neighbours, REPLIES_TO thread, Claim/Decision links) — every hop re-checked against the bitmap
        ─▶ evidence pack (ordered spans with offsets) ─▶ agent / answerer
@@ -811,6 +827,12 @@ stateDiagram-v2
 - Every write is a compare-and-set on `ver`. A conflict re-reads and retries with bounded backoff, and every retry is recorded.
 - Each tenant and each user has its own graph, cloned from `mem:template` with `GRAPH.COPY`. No query can address another tenant's graph, because graph names are resolved from the authenticated principal.
 
+**Durability on free compute.**
+
+- Every memory write is appended to a journal (Cloudflare D1) before it is acknowledged.
+- Snapshots run every 10 minutes and on shutdown.
+- Boot restores the latest snapshot, then replays the journal past the snapshot's sequence number, so a restart loses nothing (AC-T2-02).
+
 ```mermaid
 sequenceDiagram
   autonumber
@@ -853,7 +875,7 @@ sequenceDiagram
 2. Speech recognition (faster-whisper large-v3-turbo).
 3. Speaker attribution.
 4. `Utterance` nodes with `t0_ms`/`t1_ms`.
-5. Embeddings in the same space as text (EmbeddingGemma 2 audio tower).
+5. Voice embeddings for speaker identity (EmbeddingGemma 2 audio tower). Retrieval over meetings uses the recognised text in the shared text space.
 
 All of this runs as batch work, never in the request path.
 
@@ -879,13 +901,15 @@ All of this runs as batch work, never in the request path.
 | Answering and planning (benchmark runs) | One open-weights instruct model, self-hosted for batch runs and served on Cloudflare Workers AI for the live app. The model ID is pinned by ADR after the first probe | The same model for every call in a run |
 | Cross-model run | Cohere Command family | Published as a separate run, never mixed with others |
 | Judge (only where a benchmark requires one) | The benchmark's own judge prompt; a judge model from a different family than the answering model | Agreement with a second judge reported on a 10% sample |
-| Embeddings | EmbeddingGemma 2 (text and audio in one space, MRL 768/512/256/128). Cohere `embed-v4.0` as an ablation on Apex | The same model for documents and queries |
+| Embeddings | EmbeddingGemma 300M (open weights, MRL 768/512/256/128): bulk on Kaggle, queries on Workers AI (`@cf/google/embeddinggemma-300m`). Cohere `embed-v4.0` as a measured ablation on Apex | Same weights for documents and queries. Parity: cosine ≥ 0.999 between the two runtimes on 1,000 shared texts (AC-MOD-01) |
 | Bulk extraction | Self-hosted on batch compute | Redwood never leaves the self-hosted or no-training boundary |
 
 **Model lock.**
 
 - At run start the provider, model and decoding parameters are locked and hashed into the `Run` node.
 - On a 429 response, retry the same model with backoff. Never switch model mid-run.
+
+**Free-tier quotas** are budgeted before every run and logged after it: Workers AI daily neurons, Cohere trial calls (1,000 a month across endpoints), Kaggle GPU hours.
 
 **Token accounting.**
 
@@ -979,7 +1003,7 @@ Correctness invariants must be **100%**. Accuracy gates are **≥99%**.
 Performance figures are published as measured results, never as gates claimed in advance:
 
 - Bitmap check time in ns.
-- Filtered retrieval p50, p95 and p99 at 512k documents on the deployed host.
+- Filtered retrieval p50, p95 and p99 at 512k documents on a stated reference machine, and on the deployed host for the hosted tenants.
 - Clone-fleet latency.
 - Concurrency throughput.
 - Resident memory per tenant.
@@ -1088,22 +1112,25 @@ Accessibility: WCAG 2.2 AA contrast, keyboard navigation, reduced-motion support
 [SPEC:DEPLOY]
 ## 20. Hosting topology and scheduled jobs
 
-**FalkorDB is self-hosted.** We run the pinned open-source image ourselves, beside the API, so the product owns its data plane end to end.
+**FalkorDB is self-hosted, and every piece runs on a free tier with no card.**
 
 | Component | Host | Notes |
 |---|---|---|
-| Web | Vercel Hobby | Custom domain via a CNAME in the existing DNS zone. Rewrites `/api/*` and `/mcp` to the API host, so the browser sees one origin |
-| API, MCP and FalkorDB | One 16 GB VM (Google Cloud `e2-standard-4`, `asia-south1`), Docker Compose: FalkorDB (internal network only), FastAPI + FastMCP, worker, `supercronic`, Caddy for TLS | Runs on the provider's new-account trial credit, which covers this VM for the whole judging window. Snapshots go to object storage; any host restores from them in minutes |
-| Zero-card fallback | Render free web service (512 MB): FalkorDB + API in one container, serving Apex, the live tenant and memory graphs | Redwood is then served as recorded runs plus a downloadable snapshot for local replay. Chosen in ADR-0003 |
+| Web | Vercel Hobby | Static build on a global CDN. Custom domain by CNAME in the existing DNS zone. Rewrites `/api/*` and `/mcp` to the API, so the browser sees one origin. The site renders recorded results instantly, even while the API wakes |
+| API, MCP and FalkorDB | Render free web service: one Docker image built on the pinned FalkorDB image, with the API beside it under a two-process supervisor | 512 MB. Hosts Apex, the FalkorDB OSS live tenant and the memory graphs; a CI check fails if snapshots outgrow the budget. The schedulers keep it warm (750 free instance-hours cover one service for a month) |
+| Snapshots | GitHub Releases | Graph RDB snapshots and index shards with sha256 manifests, restored on boot (the free host has no persistent disk) |
+| Memory journal | Cloudflare D1 | Append before acknowledge; replayed on boot ([SPEC:MEMORY]) |
+| Redwood (512k documents) | Kaggle and a stated reference machine | Too large for 512 MB. Published as recorded runs with proofs; `docker compose up` rebuilds it from the public dataset and replays any proof locally |
 | Batch compute | Kaggle ([SPEC:BATCH]) | Embeddings, speech, indexes, benchmark runs. Outputs are hash-manifested |
-| Schedules | `supercronic` on the VM, GitHub Actions cron (public repository), Cloudflare Worker cron | Monitoring never depends on the host it monitors |
+| Schedules | GitHub Actions cron (public repository) and a Cloudflare Worker cron | Monitoring never depends on the host it monitors |
 | Engine matrix | FalkorDB 4.22.x primary; 6.0.x smoke tests in CI | Results for both published if the 6.x smoke tests pass |
 
-**Rejected, with reason (ADR-0003):**
+**Rejected, with reason (ADR-0003, checked October 2026):**
 
-- **FalkorDB Cloud free tier:** 100 MB, stopped after one idle day, deleted after seven, no backups. It cannot hold Redwood or survive a judging window. Paid tiers start at 1 GB.
+- **FalkorDB Cloud free tier:** 100 MB, stopped after one idle day, deleted after seven, no backups. Paid tiers start at 1 GB.
 - **Hugging Face Spaces:** Gradio and Docker Spaces now require a paid plan to create.
-- **Serverless platforms:** no place for a resident graph; every cold start would reload it.
+- **Koyeb, Fly.io, Railway, hyperscaler trials:** a card is required, or the free compute expires.
+- **Coolify:** a strong self-hosting control plane, but it manages servers; it does not supply one. It remains an option for the reference machine.
 
 **Scheduled jobs:**
 
@@ -1154,7 +1181,7 @@ Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parall
 [SPEC:ENGINEERING]
 ## 22. Engineering system
 
-### 21.1 Spec-driven, test-first
+### 22.1 Spec-driven, test-first
 
 1. Every AC in this file has an ID.
 2. Tests declare `@pytest.mark.ac("AC-…")`. `scripts/check_traceability.py` fails CI if any AC has no test, or if a test names an unknown AC.
@@ -1171,7 +1198,22 @@ Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parall
    - Contract tests: the in-memory MCP client.
    - Evaluation tests: small fixed slices in CI; full runs on batch compute.
 
-### 21.2 Commit protocol
+### 22.2 Block protocol (how every change is built)
+
+Every change is a **block**: one concern, one AC, about 200 changed lines at most. No block starts until the previous one is green in CI.
+
+1. **Ready.** The AC is written; the contract (types, Cypher, schema) is sketched inside the test; inputs and expected outputs are pinned.
+2. **Red.** The failing test is committed with `xfail(strict=True)`, proving it can fail.
+3. **Green.** The smallest implementation that passes. No speculative options, no unused parameters.
+4. **Prove.** The full local chain. Accuracy and performance blocks also record a before-and-after measurement in the ledger.
+5. **Review.** Read the diff as a reviewer: names, invariants stated in comments, error paths, no dead code, no secrets. Ask what breaks it at ten times the data.
+6. **Ship.** Commit, push, watch CI.
+
+- Spikes live in `spikes/` and are deleted, never merged. What a spike teaches comes back as a block with tests.
+- A block touches one bounded context unless its AC spans two.
+- Code produced with tool or assistant help is held to the same protocol and read line by line before it is committed.
+
+### 22.3 Commit protocol
 
 - **Trunk-based on `main`.** One logical change per commit, pushed right after the local gate passes.
 - **Conventional Commits:** `<type>(<context>): <summary>`.
@@ -1181,7 +1223,7 @@ Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parall
   - Footer: `Refs: AC-…` where applicable.
 - **Decisions** become ADRs in `docs/adr/NNNN-title.md`: context, decision, rejected alternatives, validation, revisit trigger.
 
-### 21.3 Local and CI quality chain
+### 22.4 Local and CI quality chain
 
 ```bash
 uv run ruff check && uv run ruff format --check \
@@ -1207,7 +1249,7 @@ CI (GitHub Actions) runs the same chain, plus `gitleaks`, `osv-scanner`, integra
 # bit i ⇔ Artifact.ix == i; rebuilt from CAN_READ, never edited in place
 ```
 
-### 21.4 Repository layout
+### 22.5 Repository layout
 
 ```text
 constellation/
@@ -1276,6 +1318,7 @@ Waves W1–W4 iterate the miss → root cause → general fix → regression tes
 | Identity over-merge | Scored, reversible merges; native IDs first |
 | Speech pipeline cost | Batch-only; derived artifacts cached with hashes |
 | Architecture for show | Constitution rule 12: a component stays only if an ablation shows it helps |
+| Free-tier quotas (Workers AI neurons, Cohere trial calls, Render bandwidth) | Quota budget per run; answer cache; batch runs on self-hosted weights; video and media served from CDNs, never from the API host |
 [/SPEC:RISKS]
 
 ---
