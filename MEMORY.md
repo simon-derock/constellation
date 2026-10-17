@@ -4,8 +4,8 @@ Present tense of the build. Design: [`PLAN_SPEC.md`](PLAN_SPEC.md) · contract: 
 Read this first, update it last. Under 80 lines, no secrets, no narrative.
 
 ## Now
-- **Wave:** W1 Apex brain — Apex in FalkorDB; Cypher cone ≡ oracle; ownership + proof next
-- **Gate:** `scripts/gate.sh` green · 92 tests · traceability 4/38 · line length 120
+- **Wave:** W1 Apex brain — cone, ownership, causality in FalkorDB; SILENCE (absence) next
+- **Gate:** `scripts/gate.sh` green · 130+ tests · traceability 5/38 · commits only via `scripts/ship.sh`
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
 - **Last commit verified in CI:** see Actions; every push runs the full gate
 
@@ -15,16 +15,17 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 | AC-INV-03 proof replay | Partial | read port reproduces result hashes (`tests/integration/test_read_port.py`) |
 | AC-INV-06 no agent writes | Partial | engine refuses writes through `GRAPH.RO_QUERY` |
 | AC-T3-01 one graph | Partial | Apex loads idempotently (`tests/integration/test_apex_graph.py`) |
+| AC-T3-02 who owned what | Partial | `owner_as_of` ≡ timeline at every boundary, 10 domains; registry-only starts flagged |
 | AC-T3-03 who could know | Partial | Cypher cone ≡ oracle, every internal actor × 5 days |
 | all others (34) | Missing | — |
-| (port check) | Done | `tools/audit_apex_access.py` → 30/30 vs PERSPECTIVE labels; `docs/audits/2026-10-17-apex-access-port.md` |
+| (port check) | Done | access 30/30 PERSPECTIVE; causality 21/21 links, 17/21 outcomes (4 gold disputes) — `docs/audits/` |
 
 Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `python -m constellation.ingest.fetch apex` verifies every byte.
 
 ## Next, in order
-1. Ownership/escalation intervals from `domain_registry` + lifecycle events; `owner_as_of` with replayable proof.
-2. Causal chains: `facts.causal_chain` → ordered CAUSED edges; COUNTERFACTUAL traversal query.
-3. Absence: SILENCE search-space query that returns what was searched.
+1. SILENCE: vendor OrgForge's absence rules; search-space query that returns what was searched.
+2. Escalation chains (14 `escalation_chain` events) as ESCALATES_TO with day intervals.
+3. W2: agent FSM + MCP tools over the catalogue (cone, owner_as_of, counterfactual, absence).
 4. Kaggle job skeleton: Redwood fetch-and-verify inside the kernel.
 
 ## Decisions (one line each; `docs/adr/0001–0004` carry the why)
@@ -49,6 +50,8 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 - Render free cannot run an embedding model.
 - `graph` is a reserved Mermaid word; `test_*` helper names get collected by pytest.
 - Apex timestamps drift from the simulation day both ways; the day is the only clock (ADR-0005).
+- Causal rules take the first match: run events chronologically (19→21/21 links).
+- `_vendor/` is generated and sha256-pinned; regenerate with `tools/vendor_orgforge.py`, never edit.
 - `falkordb` is untyped: keep it behind `ReadPort`; mypy override is scoped to that module.
 
 ## Commands
