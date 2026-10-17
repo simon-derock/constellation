@@ -163,3 +163,26 @@ def test_the_loop_warns_two_steps_before_its_budget_ends() -> None:
     warned = [i for i, m in enumerate(llm.seen_messages) if any("Two steps left" in str(x.get("content")) for x in m)]
     assert warned
     assert warned[0] == 4
+
+
+class StrictTools(StubTools):
+    def could_have_known(self, event: str) -> dict[str, object]:
+        if event != "EVT-real":
+            raise ValueError(f"unknown event id {event!r}")
+        return {"could_actor_have_known": True, "evidence_artifacts": ["s-1"], "blocked_subsystems": []}
+
+
+def test_a_refused_action_becomes_an_observation_and_the_loop_corrects_itself() -> None:
+    q = Question("p", "PERSPECTIVE", "Could Tom have known?", actor="Tom", day=9, subsystems=("slack",))
+    llm = ScriptedLLM(
+        [
+            call("could_have_known", event="the incident on day 9"),
+            call("could_have_known", event="EVT-real"),
+            final({"could_actor_have_known": True}),
+        ]
+    )
+    result = answer(llm, StrictTools(), q)
+    assert result.tool_errors == 1
+    assert result.answer["could_actor_have_known"] is True
+    tool_messages = [m["content"] for m in llm.seen_messages[1] if m.get("role") == "tool"]
+    assert "unknown event id" in tool_messages[0]

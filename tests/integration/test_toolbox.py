@@ -201,3 +201,18 @@ def test_absence_records_the_triggers_own_artifacts_before_the_decision(port: Re
     tools = Toolbox(port, GRAPH)
     tools.absence("EVT-8-incident_opened-1219", "sf_deals_risk_flagged")
     assert [c.tool for c in tools.calls] == ["event_artifacts", "absence"]
+
+
+@pytest.mark.parametrize("call", ["event_artifacts", "could_have_known", "absence", "counterfactual"])
+def test_a_made_up_event_id_is_refused_with_a_correctable_error_and_records_nothing(port: ReadPort, call: str) -> None:
+    tools = Toolbox(port, GRAPH, Perspective("Alex", "engineering_mobile", 28))
+    junk = "documentation gap in the design doc"
+    args = {
+        "event_artifacts": (junk,),
+        "could_have_known": (junk,),
+        "absence": (junk, "postmortem_created"),
+        "counterfactual": (junk, TRUE_EFFECT, "doc_gap_detected"),
+    }[call]
+    with pytest.raises(ValueError, match="unknown event id"):
+        getattr(tools, call)(*args)
+    assert tools.calls == []

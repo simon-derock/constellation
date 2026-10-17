@@ -86,6 +86,11 @@ class Toolbox:
         self._record("candidate_links", args, [], [], [result.sha256], t0, empty=not rows)
         return rows
 
+    def _require_event(self, event: str) -> None:
+        # a tool call must name an event the graph holds; the error is the Observation that lets the model correct it
+        if not self._run("event_info", {"event": event}).rows:
+            raise ValueError(f"unknown event id {event[:60]!r}; copy ids from candidate_links or find_events rows")
+
     def _read_once(self, event: str) -> None:
         # evidence for an event is read once per question; a repeat would only inflate the trajectory
         if not any(c.tool == "event_artifacts" and c.args.get("event") == event for c in self.calls):
@@ -111,6 +116,7 @@ class Toolbox:
         return rows
 
     def event_artifacts(self, event: str) -> list[dict[str, Value]]:
+        self._require_event(event)
         t0 = time.perf_counter()
         result = self._run("event_artifacts", {"event": event})
         rows = [dict(zip(result.columns, row, strict=True)) for row in result.rows]
@@ -133,6 +139,7 @@ class Toolbox:
     def could_have_known(self, event: str) -> dict[str, Value]:
         # PERSPECTIVE rule (ADR-0005) composed from graph reads; evidence is restricted to the cone
         p = self._required_perspective()
+        self._require_event(event)
         t0 = time.perf_counter()
         cone, cone_proof = self._cone()
         produced = self._run("event_artifacts", {"event": event})
@@ -170,6 +177,8 @@ class Toolbox:
         return rows
 
     def counterfactual(self, cause: str, effect: str, mechanism: str) -> dict[str, Value]:
+        self._require_event(cause)
+        self._require_event(effect)
         # the verdict rests on both events' artifacts, so they are read first and in causal order
         self._read_once(cause)
         self._read_once(effect)
@@ -195,6 +204,7 @@ class Toolbox:
         }
 
     def absence(self, trigger: str, response_type: str) -> dict[str, Value]:
+        self._require_event(trigger)
         # the trigger's own artifacts are part of what was searched, so they are read and recorded first
         self._read_once(trigger)
         t0 = time.perf_counter()
