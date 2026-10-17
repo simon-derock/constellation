@@ -10,8 +10,8 @@ from fastapi import FastAPI
 from constellation.agents.epistemic import LLM
 from constellation.agents.llm import LLMError, ModelLock, WorkersAI
 from constellation.api.app import Settings, Tenant, create_app
+from constellation.brain.roles import roles_from_config
 from constellation.graph.read import ReadPort
-from constellation.ingest.apex import roles_from_config
 
 # https only, plus localhost for development; a wildcard would let any page call the API with the visitor's network
 _ORIGIN = re.compile(r"https://[a-z0-9.-]+(:\d+)?|http://localhost(:\d+)?")

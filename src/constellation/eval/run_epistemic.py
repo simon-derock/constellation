@@ -13,9 +13,9 @@ from constellation.agents.epistemic import Question
 from constellation.agents.llm import ModelLock, WorkersAI
 from constellation.agents.planner import solve
 from constellation.agents.toolbox import Perspective, Toolbox
+from constellation.brain.roles import roles_from_config
 from constellation.eval.epistemic import score, summarize, trajectory
 from constellation.graph.read import ReadPort
-from constellation.ingest.apex import roles_from_config
 
 
 def question_for_agent(raw: Mapping[str, Any]) -> Question:

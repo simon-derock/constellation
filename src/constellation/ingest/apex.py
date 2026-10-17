@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
-import yaml
 
 from constellation.brain.access import SimEvent
 from constellation.brain.escalation import Chain, chain_from_facts
 from constellation.brain.ownership import Claim, Departure, RegistryEntry
+from constellation.brain.roles import roles_from_config
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,20 +50,6 @@ def parse_artifact_ids(raw: str | None) -> tuple[tuple[str, str], ...]:
         values = value if isinstance(value, list) else [value]
         pairs.extend((key, str(v)) for v in values if v)
     return tuple(pairs)
-
-
-def _role(dept: str) -> str:
-    return dept.lower().replace(" ", "_")
-
-
-def roles_from_config(path: Path) -> dict[str, str]:
-    # eval_harness.py ActorVisibilityBuilder._infer_actor_roles; anyone absent is external
-    cfg = yaml.safe_load(path.read_text())
-    roles = {name: _role(dept) for dept, members in cfg["org_chart"].items() for name in members}
-    lifecycle = cfg.get("org_lifecycle") or {}
-    for change in (lifecycle.get("scheduled_hires") or []) + (lifecycle.get("scheduled_departures") or []):
-        roles[change["name"]] = _role(change["dept"])
-    return roles
 
 
 def _summary(body: str | None) -> str:

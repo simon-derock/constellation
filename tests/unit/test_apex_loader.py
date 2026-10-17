@@ -3,7 +3,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from constellation.ingest.apex import load_apex, parse_artifact_ids, roles_from_config
+from constellation.brain.roles import roles_from_config
+from constellation.ingest.apex import load_apex, parse_artifact_ids
 
 type Pairs = tuple[tuple[str, str], ...]
 

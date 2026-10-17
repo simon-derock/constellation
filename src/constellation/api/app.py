@@ -16,6 +16,7 @@ from constellation.agents.epistemic import LLM, Question
 from constellation.agents.llm import LLMError
 from constellation.agents.planner import solve
 from constellation.agents.toolbox import Perspective, Toolbox
+from constellation.api.catalogue import prove
 from constellation.api.mcp import build_server
 from constellation.graph.read import ReadPort
 from constellation.proof import ProofQuery, replay
@@ -135,6 +136,24 @@ def create_app(port: ReadPort, settings: Settings, llm_factory: Callable[[], LLM
     @app.get("/api/v1/tenants")
     def tenants() -> dict[str, Any]:
         return {"tenants": [{"key": t.key, "title": t.title} for t in settings.tenants.values()]}
+
+    @app.get("/api/v1/actors")
+    def actors(tenant: str) -> dict[str, Any]:
+        roles = tenant_of(tenant).roles
+        return {"actors": [{"name": name, "role": roles[name]} for name in sorted(roles)]}
+
+    @app.get("/api/v1/ownership")
+    def ownership(tenant: str) -> dict[str, Any]:
+        proof = prove(port, tenant_of(tenant).graph, "ownership_all", {})
+        columns = [str(c) for c in proof["columns"]]
+        by_domain: dict[str, list[dict[str, Any]]] = {}
+        for row in proof["rows"]:
+            record = dict(zip(columns, row, strict=True))
+            by_domain.setdefault(str(record.pop("domain")), []).append(record)
+        return {
+            "domains": [{"domain": name, "intervals": spans} for name, spans in by_domain.items()],
+            "proof": {"queries": [{"name": "ownership_all", "params": {}, "sha256": proof["sha256"]}]},
+        }
 
     @app.post("/api/v1/ask")
     def ask(body: AskRequest, request: Request) -> dict[str, Any]:

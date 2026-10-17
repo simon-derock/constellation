@@ -173,3 +173,25 @@ def test_an_unavailable_model_is_a_clean_503_that_leaks_no_detail(port: ReadPort
     out = client.post("/api/v1/ask", json=body)
     assert out.status_code == 503
     assert out.json() == {"detail": "the model is unavailable right now; recorded runs are still browsable"}
+
+
+@pytest.mark.ac("AC-T3-02")
+def test_the_ownership_timeline_lists_every_domain_with_a_replayable_proof(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    body = client.get("/api/v1/ownership", params={"tenant": "apex"}).json()
+    domains = {d["domain"]: d["intervals"] for d in body["domains"]}
+    assert len(domains) == 10
+    titan = domains["Project Titan"]
+    assert [i["owner"] for i in titan] == ["Bill", "Sharon", "Sam"]
+    assert titan[-1]["to"] is None
+    assert titan[-1]["origin"] == "claim"
+    replayed = client.post("/api/v1/replay", json={"tenant": "apex", "queries": body["proof"]["queries"]})
+    assert replayed.json()["all_match"] is True
+
+
+def test_actors_come_from_the_server_side_role_table(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    actors = client.get("/api/v1/actors", params={"tenant": "apex"}).json()["actors"]
+    assert actors == [{"name": "Alex", "role": "engineering_mobile"}, {"name": "Tom", "role": "hr_ops"}]
+    assert client.get("/api/v1/actors", params={"tenant": "nope"}).status_code == 422
+    assert client.get("/api/v1/ownership", params={"tenant": "nope"}).status_code == 422
