@@ -51,6 +51,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "PT", "N", "C4", "PE
 python_version = "3.13"
 strict = true
 mypy_path = ["src", "tools"]
+# vendored OrgForge code is untyped by design; only its call sites are allowed to reach it
+untyped_calls_exclude = ["constellation._vendor"]
 
 [[tool.mypy.overrides]]
 module = ["constellation._vendor.*"]

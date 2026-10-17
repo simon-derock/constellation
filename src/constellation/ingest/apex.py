@@ -18,6 +18,21 @@ class ApexArtifact:
     body: str
 
 
+@dataclass(slots=True, eq=False)
+class RawEvent:
+    # attribute-compatible with orgforge.memory.SimEvent so the vendored causal rules run unmodified
+    type: str
+    day: int
+    date: str
+    timestamp: str
+    actors: list[str]
+    artifact_ids: dict[str, object]
+    facts: dict[str, object]
+    summary: str
+    tags: list[str]
+    mongo_id: str
+
+
 @dataclass(frozen=True, slots=True)
 class ApexCorpus:
     events: tuple[SimEvent, ...]
@@ -94,3 +109,37 @@ def ownership_sources(corpus: Path, registry: Path) -> tuple[list[RegistryEntry]
         else:
             departures.append(Departure(facts["name"], row["day"], row["doc_id"]))
     return entries, claims, departures
+
+
+def _json_dict(raw: str | None) -> dict[str, object]:
+    if not raw:
+        return {}
+    value = json.loads(raw)
+    return value if isinstance(value, dict) else {}
+
+
+def _json_list(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    value = json.loads(raw)
+    return [str(v) for v in value] if isinstance(value, list) else []
+
+
+def raw_events(corpus: Path) -> list[RawEvent]:
+    # chronological: the causal rules return the first matching effect, so order is part of the semantics
+    frame = pl.read_parquet(corpus).filter(pl.col("category") == "sim_event").sort(["day", "timestamp"])
+    return [
+        RawEvent(
+            type=row["doc_type"],
+            day=row["day"],
+            date=row["date"] or "",
+            timestamp=row["timestamp"] or "",
+            actors=_json_list(row["actors"]),
+            artifact_ids=_json_dict(row["artifact_ids"]),
+            facts=_json_dict(row["facts"]),
+            summary="",
+            tags=_json_list(row["tags"]),
+            mongo_id=row["doc_id"],
+        )
+        for row in frame.iter_rows(named=True)
+    ]
