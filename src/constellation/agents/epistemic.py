@@ -105,16 +105,23 @@ _BASE = (
     "repeat a call, cite artifact ids, never guess, and finish with only the requested JSON object."
 )
 PROCESS = {
-    "PERSPECTIVE": "Find the event with find_events, then call could_have_known on it; answer from that result only.",
+    "PERSPECTIVE": (
+        "Find the event with find_events using the day and event type the question names; summaries help you pick. "
+        "Then call could_have_known on that event and answer from its result."
+    ),
     "COUNTERFACTUAL": (
-        "Find the cause and the effect events with find_events. Call event_artifacts on the cause, then on the "
-        "effect, then causal_links on the cause to read the mechanism, then counterfactual."
+        "Find the cause event with find_events; summaries help you pick. Call causal_links on it to see its effects "
+        "and mechanisms, and choose the effect the question describes. Then call event_artifacts on the cause, then "
+        "on the effect, then counterfactual with that mechanism. Report the mechanism label and the people involved."
     ),
     "SILENCE": (
-        "Find the trigger event with find_events, read its artifacts with event_artifacts, then call absence with "
-        "the expected response type; report every artifact you searched."
+        "Find the trigger event with find_events and read its artifacts with event_artifacts. Look for the expected "
+        "response directly with find_events on the trigger's day and the response's event type, then call absence "
+        "with the expected response type. Report every artifact you searched."
     ),
 }
+# counterfactuals need two events, their artifacts in order, the mechanism and the verdict
+STEP_BUDGET = {"PERSPECTIVE": 6, "SILENCE": 6, "COUNTERFACTUAL": 10}
 
 
 def _system(q: Question) -> str:
@@ -145,7 +152,7 @@ def _execute(tools: object, name: str, args: Mapping[str, Any], allowed: Sequenc
     return method(**args)
 
 
-def answer(llm: LLM, tools: object, q: Question, max_steps: int = 6) -> AgentRun:
+def answer(llm: LLM, tools: object, q: Question, max_steps: int | None = None) -> AgentRun:
     allowed = TOOLSETS[q.qtype]
     specs = [SPECS[n] for n in allowed]
     messages: list[dict[str, Any]] = [
@@ -154,7 +161,8 @@ def answer(llm: LLM, tools: object, q: Question, max_steps: int = 6) -> AgentRun
     ]
     run = AgentRun(answer={}, stop_reason="")
     seen: set[str] = set()
-    while run.steps < max_steps:
+    budget = max_steps or STEP_BUDGET[q.qtype]
+    while run.steps < budget:
         reply = llm.chat(messages, specs)
         run.steps += 1
         if not reply.tool_calls:
@@ -224,9 +232,11 @@ def _verify(run: AgentRun, q: Question) -> AgentRun:
         if run.answer.get("could_actor_have_known") is not known:
             run.strategy_changes.append("verify: could_actor_have_known corrected to the visibility rule")
         run.answer.update(could_actor_have_known=known, evidence_artifacts=list(hit[1]["evidence_artifacts"]))
+        run.answer["blocked_subsystems"] = list(hit[1].get("blocked_subsystems", []))
     if q.qtype == "COUNTERFACTUAL" and (hit := _last(run, "counterfactual")) and hit[1].get("linked"):
         changed = bool(hit[1]["outcome_changed"])
         if run.answer.get("outcome_changed") is not changed:
             run.strategy_changes.append("verify: outcome_changed corrected to the counterfactual tool")
         run.answer.update(outcome_changed=changed, causal_mechanism=hit[0]["mechanism"])
+        run.answer["actors"] = list(hit[1].get("actors", []))
     return run

@@ -116,3 +116,41 @@ def test_malformed_final_text_gets_one_correction_turn() -> None:
     result = answer(llm, StubTools(), SILENCE)
     assert result.answer["exists"] is False
     assert result.protocol_corrections == 1
+
+
+class CounterfactualTools(StubTools):
+    def counterfactual(self, cause: str, effect: str, mechanism: str) -> dict[str, object]:
+        self.log.append(("counterfactual", {"cause": cause}))
+        return {"linked": True, "outcome_changed": False, "alternative_causes": ["c2"], "actors": ["Jax", "Raj"]}
+
+
+def test_counterfactual_answers_take_mechanism_outcome_and_people_from_the_tool() -> None:
+    q = Question("c1", "COUNTERFACTUAL", "Would the incident still have happened?")
+    llm = ScriptedLLM(
+        [
+            call("counterfactual", cause="c1", effect="e1", mechanism="doc_gap_detected"),
+            final({"outcome_changed": True, "causal_mechanism": "involves_gap"}),
+        ]
+    )
+    result = answer(llm, CounterfactualTools(), q)
+    assert result.answer["outcome_changed"] is False
+    assert result.answer["causal_mechanism"] == "doc_gap_detected"
+    assert result.answer["actors"] == ["Jax", "Raj"]
+
+
+class PerspectiveTools(StubTools):
+    def could_have_known(self, event: str) -> dict[str, object]:
+        return {"could_actor_have_known": False, "evidence_artifacts": [], "blocked_subsystems": ["git"]}
+
+
+def test_perspective_answers_report_blocked_subsystems_from_the_tool() -> None:
+    q = Question("p1", "PERSPECTIVE", "Could Tom have known?", actor="Tom", day=9, subsystems=("slack",))
+    llm = ScriptedLLM([call("could_have_known", event="e"), final({"could_actor_have_known": False})])
+    result = answer(llm, PerspectiveTools(), q)
+    assert result.answer["blocked_subsystems"] == ["git"]
+
+
+def test_counterfactual_questions_get_a_larger_step_budget() -> None:
+    from constellation.agents.epistemic import STEP_BUDGET
+
+    assert STEP_BUDGET["COUNTERFACTUAL"] > STEP_BUDGET["SILENCE"]
