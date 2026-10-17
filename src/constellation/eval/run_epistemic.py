@@ -9,8 +9,9 @@ from typing import Any
 
 from falkordb import FalkorDB
 
-from constellation.agents.epistemic import Question, answer
+from constellation.agents.epistemic import Question
 from constellation.agents.llm import ModelLock, WorkersAI
+from constellation.agents.planner import solve
 from constellation.agents.toolbox import Perspective, Toolbox
 from constellation.eval.epistemic import score, summarize, trajectory
 from constellation.graph.read import ReadPort
@@ -39,7 +40,7 @@ def run_one(
     tools = Toolbox(port, graph, perspective)
     before = len(llm.usage)
     start = time.perf_counter()
-    agent_run = answer(llm, tools, q)
+    agent_run = solve(llm, tools, q)
     cone = tools._cone()[0] if perspective else None
     traj = trajectory(raw, tools.calls, agent_run, cone)
     usage = llm.usage[before:]
