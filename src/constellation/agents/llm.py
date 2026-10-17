@@ -53,7 +53,7 @@ def https_transport(url: str, headers: dict[str, str], body: bytes) -> tuple[int
         raise LLMError("refusing to open a URL outside the provider origin")
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")  # noqa: S310
     try:
-        with urllib.request.urlopen(request, timeout=90) as response:  # noqa: S310  # nosec B310 — origin checked above
+        with urllib.request.urlopen(request, timeout=90) as response:  # noqa: S310  # nosec B310
             return response.status, json.load(response)
     except urllib.error.HTTPError as err:
         try:
