@@ -195,3 +195,9 @@ def test_counterfactual_does_not_reread_evidence_the_caller_already_read(port: R
     tools.event_artifacts(TRUE_CAUSE)
     tools.counterfactual(TRUE_CAUSE, TRUE_EFFECT, "doc_gap_detected")
     assert [c.tool for c in tools.calls] == ["event_artifacts", "event_artifacts", "counterfactual"]
+
+
+def test_absence_records_the_triggers_own_artifacts_before_the_decision(port: ReadPort) -> None:
+    tools = Toolbox(port, GRAPH)
+    tools.absence("EVT-8-incident_opened-1219", "sf_deals_risk_flagged")
+    assert [c.tool for c in tools.calls] == ["event_artifacts", "absence"]

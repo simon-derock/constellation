@@ -8,11 +8,9 @@ from constellation.agents.epistemic import LLM, RESPONSE_TYPES, AgentRun, Questi
 # tier 2 of PLAN_SPEC §11: the model states what to look for; reviewed catalogue calls do the looking
 _DAY_RANGE = range(-1_000, 1_001)
 _MAX_CANDIDATES = 5
-_MAX_LINKS = 20
 _TARGET = {
     "PERSPECTIVE": "target_type is ''",
     "SILENCE": "event_type is the triggering event; target_type is the expected response that may be missing",
-    "COUNTERFACTUAL": "event_type is the cause event; target_type is the effect event",
 }
 
 
@@ -20,8 +18,6 @@ class Tools(Protocol):
     def event_types(self) -> list[str]: ...
     def find_events(self, day: int, event_type: str = "", actors: Sequence[str] = ()) -> list[dict[str, Any]]: ...
     def event_artifacts(self, event: str) -> list[dict[str, Any]]: ...
-    def causal_links(self, event: str) -> list[dict[str, Any]]: ...
-    def counterfactual(self, cause: str, effect: str, mechanism: str) -> dict[str, Any]: ...
     def could_have_known(self, event: str) -> dict[str, Any]: ...
     def absence(self, trigger: str, response_type: str) -> dict[str, Any]: ...
 
@@ -102,9 +98,6 @@ def run_planned(llm: LLM, tools: Tools, q: Question) -> AgentRun | None:
     found = tools.find_events(plan.day, plan.event_type, list(plan.people))
     candidates = [c for c in found if not c.get("no_match")]
     run = AgentRun(answer={}, stop_reason="planned")
-    if q.qtype == "COUNTERFACTUAL":
-        # the link filter is a cheap graph read, so every candidate is examined before any is dropped
-        return _counterfactual(llm, tools, q, plan, candidates, run)
     candidates = candidates[:_MAX_CANDIDATES]
     target = _choose(llm, q, candidates, "event")
     if target is None:
@@ -124,41 +117,13 @@ def run_planned(llm: LLM, tools: Tools, q: Question) -> AgentRun | None:
     return _verify(run, q)
 
 
-def _counterfactual(
-    llm: LLM, tools: Tools, q: Question, plan: Plan, candidates: Sequence[Mapping[str, Any]], run: AgentRun
-) -> AgentRun | None:
-    viable = [
-        link
-        for c in candidates
-        for link in tools.causal_links(str(c["event"]))
-        if link["cause"] == c["event"] and plan.target_type in ("", link["effect_type"])
-    ]
-    viable = viable[:_MAX_LINKS]
-    for i, link in enumerate(viable):
-        link["option"] = str(i)
-    picked = _choose(llm, q, viable, "option")
-    if picked is None:
-        return None
-    cause, effect, mechanism = str(picked["cause"]), str(picked["effect"]), str(picked["mechanism"])
-    tools.event_artifacts(cause)
-    tools.event_artifacts(effect)
-    args = {"cause": cause, "effect": effect, "mechanism": mechanism}
-    result = _note(run, "counterfactual", args, tools.counterfactual(cause, effect, mechanism))
-    alternatives = result.get("alternative_causes") or []
-    verdict = "would not" if alternatives else "would"
-    run.answer = {
-        "mechanism": mechanism.replace("_", " "),
-        "reasoning": f"{cause} causes {effect} through {mechanism}; removing it {verdict} change the outcome"
-        + (f" because {len(alternatives)} independent {mechanism} cause(s) remain." if alternatives else "."),
-    }
-    return _verify(run, q)
-
-
 def solve(llm: LLM, tools: Tools, q: Question) -> AgentRun:
-    # planned first; the free tool loop is the fallback, and the switch is recorded
-    planned = run_planned(llm, tools, q)
+    # PERSPECTIVE and SILENCE resolve in one model call; COUNTERFACTUAL is a ReAct loop over candidate_links.
+    # An unresolved plan falls back to the ReAct loop, and the switch is recorded
+    planned = None if q.qtype == "COUNTERFACTUAL" else run_planned(llm, tools, q)
     if planned is not None:
         return planned
     fallback = answer(llm, tools, q)
-    fallback.strategy_changes.insert(0, "plan unresolved: switched to the free tool loop")
+    if q.qtype != "COUNTERFACTUAL":
+        fallback.strategy_changes.insert(0, "plan unresolved: switched to the ReAct loop")
     return fallback

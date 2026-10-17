@@ -55,14 +55,13 @@ def test_one_tool_per_step_until_a_final_answer() -> None:
     llm = ScriptedLLM(
         [
             call("find_events", day=8, event_type="incident_opened", actors=["Jax"]),
-            call("event_artifacts", event="EVT-8-incident_opened-1"),
             call("absence", trigger="EVT-8-incident_opened-1", response_type="postmortem_created"),
             final({"exists": False, "answer": "no", "reasoning": "nothing found"}),
         ]
     )
     tools = StubTools()
     result = answer(llm, tools, SILENCE)
-    assert [name for name, _ in tools.log] == ["find_events", "event_artifacts", "absence"]
+    assert [name for name, _ in tools.log] == ["find_events", "absence"]
     assert result.answer["exists"] is False
     assert result.stop_reason == "final answer"
 
@@ -70,15 +69,15 @@ def test_one_tool_per_step_until_a_final_answer() -> None:
 def test_silence_offers_only_its_own_tools() -> None:
     llm = ScriptedLLM([final({"exists": False, "answer": "no", "reasoning": "-"})])
     answer(llm, StubTools(), SILENCE)
-    assert set(llm.seen_tools[0]) == {"find_events", "event_artifacts", "absence"}
+    assert set(llm.seen_tools[0]) == {"find_events", "absence"}
 
 
 def test_identical_repeated_calls_are_refused_not_executed() -> None:
-    repeat = call("event_artifacts", event="EVT-8-incident_opened-1")
+    repeat = call("find_events", day=8)
     llm = ScriptedLLM([repeat, repeat, final({"exists": False, "answer": "no", "reasoning": "-"})])
     tools = StubTools()
     result = answer(llm, tools, SILENCE)
-    assert [name for name, _ in tools.log] == ["event_artifacts"]
+    assert [name for name, _ in tools.log] == ["find_events"]
     assert result.refused_repeats == 1
 
 

@@ -195,6 +195,8 @@ class Toolbox:
         }
 
     def absence(self, trigger: str, response_type: str) -> dict[str, Value]:
+        # the trigger's own artifacts are part of what was searched, so they are read and recorded first
+        self._read_once(trigger)
         t0 = time.perf_counter()
         args = {"trigger": trigger, "response_type": response_type}
         result = self._run("absence", args)

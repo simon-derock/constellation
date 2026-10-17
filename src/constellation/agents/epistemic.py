@@ -9,8 +9,7 @@ from constellation.agents.llm import Reply
 
 RESPONSE_TYPES = sorted({response for _trigger, response, _field in _SILENCE_PAIRS})
 MECHANISMS = sorted(_EXPLICIT_CAUSAL_LINKS)
-# tool results are evidence, not prose: long lists are cut so one call cannot flood the context
-_RESULT_CHARS = 4_000
+_RESULT_CHARS = 2_500
 
 
 class LLM(Protocol):
@@ -45,95 +44,116 @@ def _spec(name: str, description: str, properties: dict[str, Any], required: Seq
     return {"type": "function", "function": {"name": name, "description": description, "parameters": schema}}
 
 
-_EVENT = {"type": "string", "description": "event id returned by find_events"}
+_EVENT = {"type": "string"}
+_TYPE = {"type": "string"}
+# what each mechanism label means, from the cause and effect types it links in the Apex graph
+MECH_GLOSS = {
+    "involves_gap": "gap from a departed person's undocumented expertise -> incident",
+    "doc_gap_detected": "gap an author found in their own design doc -> incident",
+    "async_gap_detected": "async Slack thread exposed a knowledge gap",
+    "pr_gap_detected": "PR review exposed a knowledge gap",
+    "spawned_doc": "design discussion -> Confluence page",
+    "postmortem_from_incident": "incident -> postmortem page",
+    "incident_coordination": "incident -> contact with an external party",
+    "recurrence_of": "incident repeating an earlier incident",
+    "jira_from_vendor_email": "vendor email -> Jira ticket",
+    "review_triggers_revision": "PR review requesting changes -> revision review",
+    "departure_reassignment": "employee departure -> ticket and escalation reassignment",
+    "hire_fills_knowledge_gap": "new hire fills a departed person's knowledge gap",
+    "escalation_from_zendesk": "Zendesk escalation -> incident",
+}
 SPECS = {
     "find_events": _spec(
         "find_events",
-        "Find simulation events on a day, optionally by event type. Named people rank events: first those "
-        "directly involved, then those linked through a shared artifact (a doc they wrote, a thread). "
-        "Returns ids and summaries.",
-        {
-            "day": {"type": "integer", "description": "simulation day number"},
-            "event_type": {"type": "string", "description": "e.g. incident_opened, design_discussion; '' for any"},
-            "actors": {"type": "array", "items": {"type": "string"}, "description": "names that must all be involved"},
-        },
+        "Events on a day by type; named people rank first.",
+        {"day": {"type": "integer"}, "event_type": _TYPE, "actors": {"type": "array", "items": {"type": "string"}}},
         ["day"],
     ),
-    "event_artifacts": _spec(
-        "event_artifacts",
-        "Artifacts (tickets, pages, threads, emails) an event produced.",
-        {"event": _EVENT},
-        ["event"],
+    "candidate_links": _spec(
+        "candidate_links",
+        "Cause->effect links from events on a day. Rows: cause, mechanism, effect, why.",
+        {
+            "day": {"type": "integer"},
+            "event_type": _TYPE,
+            "people": {"type": "array", "items": {"type": "string"}},
+            "target_type": _TYPE,
+            "mechanism": {"type": "string", "enum": sorted(MECH_GLOSS)},
+        },
+        ["day", "event_type"],
     ),
     "could_have_known": _spec(
-        "could_have_known",
-        "Whether the actor could have known about an event by the as-of day, with in-cone evidence artifacts.",
-        {"event": _EVENT},
-        ["event"],
-    ),
-    "causal_links": _spec(
-        "causal_links",
-        "Explicit causal links into and out of an event, with their mechanism.",
-        {"event": _EVENT},
-        ["event"],
+        "could_have_known", "Could the actor have known this event by the as-of day?", {"event": _EVENT}, ["event"]
     ),
     "counterfactual": _spec(
         "counterfactual",
-        "Would removing the cause event have changed the effect event under this mechanism?",
-        {"cause": _EVENT, "effect": _EVENT, "mechanism": {"type": "string", "enum": MECHANISMS}},
+        "Would removing the cause change the effect, via this mechanism?",
+        {"cause": _EVENT, "effect": _EVENT, "mechanism": {"type": "string", "enum": sorted(MECH_GLOSS)}},
         ["cause", "effect", "mechanism"],
     ),
     "absence": _spec(
         "absence",
-        "Did an expected response event follow a trigger event? Returns the decision and every artifact searched.",
+        "Did the response event follow the trigger? Returns every artifact searched.",
         {"trigger": _EVENT, "response_type": {"type": "string", "enum": RESPONSE_TYPES}},
         ["trigger", "response_type"],
     ),
 }
 TOOLSETS = {
-    "PERSPECTIVE": ("find_events", "could_have_known", "event_artifacts"),
-    "COUNTERFACTUAL": ("find_events", "event_artifacts", "causal_links", "counterfactual"),
-    "SILENCE": ("find_events", "event_artifacts", "absence"),
+    "PERSPECTIVE": ("find_events", "could_have_known"),
+    "COUNTERFACTUAL": ("candidate_links", "counterfactual"),
+    "SILENCE": ("find_events", "absence"),
 }
+
+
+def specs_for(qtype: str, vocabulary: Sequence[str] | None = None) -> list[dict[str, Any]]:
+    # event types are an enum of what the graph holds, so a plan cannot name a type that does not exist
+    specs = [json.loads(json.dumps(SPECS[name])) for name in TOOLSETS[qtype]]
+    if vocabulary:
+        options = ["", *vocabulary]
+        for spec in specs:
+            props = spec["function"]["parameters"]["properties"]
+            for field_name in ("event_type", "target_type"):
+                if field_name in props:
+                    props[field_name]["enum"] = options
+    return specs
+
+
+# the verifier fills mechanism, actors, evidence and reasoning from tool results, so the model emits only the verdict
 SCHEMAS = {
-    "PERSPECTIVE": '{"could_actor_have_known": bool, "reasoning": "str", "evidence_artifacts": ["id"], '
-    '"blocked_subsystems": ["str"]}',
-    "COUNTERFACTUAL": '{"outcome_changed": bool, "causal_mechanism": "<mechanism>", "mechanism": "str", '
-    '"actors": ["name"], "reasoning": "str"}',
-    "SILENCE": '{"exists": bool, "answer": "yes|no", "reasoning": "what you searched and found"}',
+    "PERSPECTIVE": '{"could_actor_have_known": bool}',
+    "COUNTERFACTUAL": '{"outcome_changed": bool}',
+    "SILENCE": '{"exists": bool}',
 }
 _BASE = (
-    "You answer questions about a company from its records using tools. Call exactly one tool at a time, never "
-    "repeat a call, cite artifact ids, never guess, and finish with only the requested JSON object."
+    "ReAct loop. Each turn: Thought (under 15 words: known, missing), then one Action (one tool call). "
+    "Read the Observation before the next Thought. Never repeat an Action, never guess; once the decisive tool "
+    "has answered, reply with only the JSON verdict."
 )
 PROCESS = {
-    "PERSPECTIVE": (
-        "Find the event with find_events using the day and event type the question names; summaries help you pick. "
-        "Then call could_have_known on that event and answer from its result."
+    "PERSPECTIVE": "Action 1: find_events for the event the question names. Action 2: could_have_known on it.",
+    "SILENCE": (
+        "Action 1: find_events for the trigger event. Action 2: absence(trigger, response_type) for the response "
+        "that may be missing."
     ),
     "COUNTERFACTUAL": (
-        "Find the cause event with find_events; summaries help you pick. Call causal_links on it to see its effects "
-        "and mechanisms, and choose the effect the question describes. Then call event_artifacts on the cause, then "
-        "on the effect, then counterfactual with that mechanism. Report the mechanism label and the people involved."
-    ),
-    "SILENCE": (
-        "Find the trigger event with find_events and read its artifacts with event_artifacts. Look for the expected "
-        "response directly with find_events on the trigger's day and the response's event type, then call absence "
-        "with the expected response type. Report every artifact you searched."
+        "Action 1: candidate_links(day, event_type, people, target_type); set mechanism when the wording implies "
+        "one, and pick the row whose why matches the question. Action 2: counterfactual with that row's ids. "
+        "Mechanisms: " + "; ".join(f"{name}={gloss}" for name, gloss in MECH_GLOSS.items()) + "."
     ),
 }
-# counterfactuals need two events, their artifacts in order, the mechanism and the verdict
-STEP_BUDGET = {"PERSPECTIVE": 6, "SILENCE": 6, "COUNTERFACTUAL": 10}
+# counterfactuals and the others are two Actions deep; the rest is slack for one correction
+STEP_BUDGET = {"PERSPECTIVE": 5, "SILENCE": 5, "COUNTERFACTUAL": 6}
 
 
-def _system(q: Question) -> str:
+def system_prompt(q: Question) -> str:
     text = f"{_BASE}\n{PROCESS[q.qtype]}"
     if q.qtype == "PERSPECTIVE":
-        text += (
-            f"\nYou answer as {q.actor} on Day {q.day}, with credentials for {', '.join(q.subsystems)}. "
-            "Using information this person could not have had is a violation."
-        )
+        text += f"\nYou answer as {q.actor} on Day {q.day} (credentials: {', '.join(q.subsystems)}); stay within it."
     return text
+
+
+def compact(value: object, limit: int) -> str:
+    # observations are evidence, not prose: no padding whitespace, and a hard cap
+    return json.dumps(value, separators=(",", ":"), default=str)[:limit]
 
 
 def _parse(content: str) -> dict[str, Any] | None:
@@ -156,9 +176,10 @@ def _execute(tools: object, name: str, args: Mapping[str, Any], allowed: Sequenc
 
 def answer(llm: LLM, tools: object, q: Question, max_steps: int | None = None) -> AgentRun:
     allowed = TOOLSETS[q.qtype]
-    specs = [SPECS[n] for n in allowed]
+    vocabulary = getattr(tools, "event_types", None)
+    specs = specs_for(q.qtype, vocabulary() if callable(vocabulary) else None)
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": _system(q)},
+        {"role": "system", "content": system_prompt(q)},
         {"role": "user", "content": f"{q.text}\n\nRespond with JSON:\n{SCHEMAS[q.qtype]}"},
     ]
     run = AgentRun(answer={}, stop_reason="")
@@ -185,7 +206,7 @@ def answer(llm: LLM, tools: object, q: Question, max_steps: int | None = None) -
         messages.append({**reply.message, "tool_calls": [tool_call]})
         if key in seen:
             run.refused_repeats += 1
-            content = json.dumps({"error": "already called with these arguments; reuse the earlier result"})
+            content = '{"error":"repeat; reuse the earlier Observation"}'
         else:
             seen.add(key)
             content = _invoke(run, tools, name, raw_args, allowed)
@@ -204,9 +225,9 @@ def _invoke(run: AgentRun, tools: object, name: str, raw_args: str, allowed: Seq
         result = _execute(tools, name, args, allowed)
     except (PermissionError, KeyError, TypeError, ValueError) as err:
         run.tool_errors += 1
-        return json.dumps({"error": str(err)})
+        return compact({"error": str(err)}, 300)
     run.results.append((name, args, result))
-    return json.dumps(result, default=str)[:_RESULT_CHARS]
+    return compact(result, _RESULT_CHARS)
 
 
 def _last(run: AgentRun, name: str) -> tuple[dict[str, Any], Any] | None:
