@@ -4,8 +4,8 @@ Present tense of the build. Design: [`PLAN_SPEC.md`](PLAN_SPEC.md) · contract: 
 Read this first, update it last. Under 80 lines, no secrets, no narrative.
 
 ## Now
-- **Wave:** W0 Foundation — 4 of 6 blocks done
-- **Gate:** `scripts/gate.sh` green · 43 tests · traceability 2/38
+- **Wave:** W0 Foundation — done; W1 Apex brain next
+- **Gate:** `scripts/gate.sh` green · 52 tests · traceability 2/38
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
 - **Last commit verified in CI:** see Actions; every push runs the full gate
 
@@ -16,12 +16,15 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 | AC-INV-06 no agent writes | Partial | engine refuses writes through `GRAPH.RO_QUERY` |
 | all others (36) | Missing | — |
 
-## Next, in order
-1. Dataset pins + manifests: Apex (OrgForge) and Redwood revisions, sha256 per file.
-2. ADR-0001…0004 (engine, chunking, hosting, models) with the probe evidence already gathered.
-3. W1: Apex normaliser → events → idempotent `UNWIND … MERGE`; ownership intervals; first catalogue query.
+Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `python -m constellation.ingest.fetch apex` verifies every byte.
 
-## Decisions (one line each; ADRs carry the why)
+## Next, in order
+1. Profile the Apex corpus and simulator snapshot: sources, people, spaces, ownership signals.
+2. Apex normaliser → typed events → idempotent `UNWIND … MERGE` with a post-load audit.
+3. Ownership, membership and escalation intervals; `owner_as_of` catalogue query with replayable proof.
+4. Kaggle job skeleton: Redwood fetch-and-verify inside the kernel.
+
+## Decisions (one line each; `docs/adr/0001–0004` carry the why)
 - Engine 4.22.x primary; 6.0.x smoke only.
 - Hosting: Vercel web + Render free (FalkorDB + API, 512 MB) + GitHub Releases snapshots + D1 journal; Redwood as recorded runs.
 - Embeddings: Qwen3-Embedding-0.6B — Kaggle for corpus, Workers AI for queries (1,024 dims, probed 17 Oct).
