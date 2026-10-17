@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from constellation._vendor.orgforge_causal import AbsenceCatalogBuilder
-from constellation.brain.absence import check_absence, link_field_for
+from constellation.brain.absence import check_absence, expectations, link_field_for
 from constellation.ingest.apex import RawEvent, raw_events
 
 
@@ -67,3 +67,24 @@ def test_matches_the_vendored_catalogue_on_real_data(seed: int) -> None:
         answer = check_absence(events, by_id[record.trigger_event_id], record.expected_response_type)
         assert answer.responded is responded, record.trigger_event_id
         assert list(answer.search_space) == record.expected_search_space, record.trigger_event_id
+
+
+def test_expectations_skip_pairs_the_catalogue_never_expects() -> None:
+    vendor_mail = ev("EVT-2-mail", 2, "inbound_external_email", {"email": "m-1"}, {"category": "vendor"})
+    spawned = ev("EVT-2-dd", 2, "design_discussion", {"zoom_transcript": "z-1"}, {"spawned_doc": True})
+    genesis = ev("EVT-0-inc", 0, "incident_opened", {"jira": "ENG-0"})
+    pairs = {(x.trigger, x.response_type) for x in expectations([vendor_mail, spawned, genesis])}
+    assert ("EVT-2-mail", "jira_from_vendor_email") in pairs
+    assert ("EVT-2-mail", "customer_email_routed") not in pairs
+    assert ("EVT-2-dd", "confluence_created") not in pairs
+    assert not any(trigger == "EVT-0-inc" for trigger, _ in pairs)
+
+
+def test_every_expectation_carries_its_decision_and_search_space() -> None:
+    pm = ev("EVT-5-pm", 5, "postmortem_created", {"confluence": "PM-7", "jira": "ENG-7"})
+    found = {(x.trigger, x.response_type): x for x in expectations([INCIDENT, pm])}
+    met = found[("EVT-3-inc", "postmortem_created")]
+    assert (met.responded, met.response_event) == (True, "EVT-5-pm")
+    unmet = found[("EVT-3-inc", "incident_resolved")]
+    assert (unmet.responded, unmet.response_event) == (False, None)
+    assert "ENG-7" in unmet.search_space

@@ -15,6 +15,45 @@ class AbsenceAnswer:
     response_event: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class Expectation:
+    trigger: str
+    response_type: str
+    responded: bool
+    response_event: str | None
+    search_space: tuple[str, ...]
+
+
+def _expected(trigger: RawEvent, response_type: str) -> bool:
+    # trigger filters of AbsenceCatalogBuilder.build (eval_harness.py @ 1da5e4b)
+    if trigger.day < 1:
+        return False
+    category = trigger.facts.get("category", "")
+    if trigger.type == "inbound_external_email":
+        if response_type == "customer_email_routed" and category == "vendor":
+            return False
+        if response_type == "jira_from_vendor_email" and category != "vendor":
+            return False
+    spawned = trigger.facts.get("spawned_doc") or "confluence" in trigger.artifact_ids
+    return not (response_type == "confluence_created" and spawned)
+
+
+def expectations(events: Sequence[RawEvent]) -> list[Expectation]:
+    # every trigger the catalogue would consider, uncapped, each with its decision and search space
+    out: list[Expectation] = []
+    for trigger_type, response_type, _field in _SILENCE_PAIRS:
+        for trigger in events:
+            if trigger.type != trigger_type or not _expected(trigger, response_type):
+                continue
+            answer = check_absence(events, trigger, response_type)
+            out.append(
+                Expectation(
+                    trigger.mongo_id, response_type, answer.responded, answer.response_event, answer.search_space
+                )
+            )
+    return out
+
+
 def link_field_for(trigger_type: str, response_type: str) -> str:
     return _LINK_FIELD[(trigger_type, response_type)]
 
