@@ -4,7 +4,6 @@ from collections.abc import Mapping, Sequence
 from falkordb import FalkorDB
 from redis.exceptions import ResponseError
 
-
 # Cypher cannot parameterise labels or property names; anything spliced into query text must match this
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 
