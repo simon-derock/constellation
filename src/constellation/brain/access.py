@@ -126,9 +126,7 @@ def _jira_visible_cone(cone: frozenset[str], role: str) -> frozenset[str]:
     return frozenset(
         aid
         for aid in cone
-        if not (
-            any(aid.startswith(p + "-") for p in JIRA_PROJECT_ACCESS) and not jira_project_visible(aid, role)
-        )
+        if not (any(aid.startswith(p + "-") for p in JIRA_PROJECT_ACCESS) and not jira_project_visible(aid, role))
     )
 
 

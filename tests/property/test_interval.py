@@ -57,9 +57,7 @@ def test_closing_twice_or_before_start_is_rejected() -> None:
 
 
 @given(ticks, st.lists(st.integers(1, 30), min_size=1, max_size=8), st.integers(0, 400))
-def test_a_handover_chain_has_exactly_one_holder_at_each_tick(
-    start: int, spans: list[int], probe: int
-) -> None:
+def test_a_handover_chain_has_exactly_one_holder_at_each_tick(start: int, spans: list[int], probe: int) -> None:
     bounds = [start]
     for span in spans:
         bounds.append(bounds[-1] + span)

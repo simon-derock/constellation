@@ -17,9 +17,7 @@ type Pairs = tuple[tuple[str, str], ...]
         ('{"spawned_tickets": ["A-1", "A-2"]}', (("spawned_tickets", "A-1"), ("spawned_tickets", "A-2"))),
     ],
 )
-def test_artifact_ids_flatten_lists_and_drop_empties(
-    raw: str | None, pairs: tuple[tuple[str, str], ...]
-) -> None:
+def test_artifact_ids_flatten_lists_and_drop_empties(raw: str | None, pairs: tuple[tuple[str, str], ...]) -> None:
     assert parse_artifact_ids(raw) == pairs
 
 

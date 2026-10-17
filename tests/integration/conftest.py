@@ -6,9 +6,7 @@ from testcontainers.core.container import DockerContainer
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
 # pinned by digest: the engine the proofs were recorded against (ADR-0001)
-FALKORDB_IMAGE = (
-    "falkordb/falkordb:v4.22.1@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de033ccbbd4368b66fb680ae7a"
-)
+FALKORDB_IMAGE = "falkordb/falkordb:v4.22.1@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de033ccbbd4368b66fb680ae7a"
 
 
 @pytest.fixture(scope="session")

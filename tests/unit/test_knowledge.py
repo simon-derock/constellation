@@ -5,15 +5,11 @@ type Corpus = frozenset[str]
 ROLE = {"Jax": "engineering_backend", "Tom": "hr_ops", "Priya": "design"}
 
 
-def ev(
-    eid: str, day: int, kind: str, actors: list[str], ids: dict[str, str], spawned: bool = False
-) -> SimEvent:
+def ev(eid: str, day: int, kind: str, actors: list[str], ids: dict[str, str], spawned: bool = False) -> SimEvent:
     return SimEvent(day, kind, tuple(actors), tuple(ids.items()), event_id=eid, spawned_doc=spawned)
 
 
-def known(
-    events: list[SimEvent], actor: str, target: SimEvent, day: int, corpus: frozenset[str] = frozenset()
-) -> bool:
+def known(events: list[SimEvent], actor: str, target: SimEvent, day: int, corpus: frozenset[str] = frozenset()) -> bool:
     return could_have_known(events, born_days(events), actor, ROLE[actor], target, day, corpus)
 
 
@@ -40,9 +36,7 @@ def test_knowledge_propagates_through_a_shared_earlier_event() -> None:
 
 
 def test_a_design_discussion_that_spawned_a_page_is_discoverable_with_confluence_access() -> None:
-    dd = ev(
-        "e6", 6, "design_discussion", ["Jax"], {"confluence": "CONF-9", "slack_thread": "t-6"}, spawned=True
-    )
+    dd = ev("e6", 6, "design_discussion", ["Jax"], {"confluence": "CONF-9", "slack_thread": "t-6"}, spawned=True)
     assert known([dd], "Tom", dd, 6, corpus=frozenset({"CONF-9"}))
     assert not known([dd], "Tom", dd, 6, corpus=frozenset())
 

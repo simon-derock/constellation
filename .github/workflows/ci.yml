@@ -18,4 +18,6 @@ jobs:
         with:
           version: "0.9.5"
       - run: uv sync --locked
+      # pinned and byte-verified; the graph differential tests run on the real corpus
+      - run: uv run python -m constellation.ingest.fetch apex
       - run: scripts/gate.sh

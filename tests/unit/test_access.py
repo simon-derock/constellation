@@ -52,9 +52,7 @@ def test_unmapped_artifact_keys_never_enter_a_cone() -> None:
 
 
 def test_external_actors_see_nothing() -> None:
-    assert (
-        cone([ev(2, "inbound_external_email", ["Nora", "Jax"], {"email": "e-1"})], "Nora", 2) == frozenset()
-    )
+    assert cone([ev(2, "inbound_external_email", ["Nora", "Jax"], {"email": "e-1"})], "Nora", 2) == frozenset()
 
 
 @pytest.mark.parametrize(
