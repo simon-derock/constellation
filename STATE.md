@@ -28,4 +28,6 @@ ADRs land in `docs/adr/` as they are taken. Pending: ADR-0001 FalkorDB 4.22.x pr
 - Hugging Face Gradio and Docker Spaces need a paid plan to create (October 2026); do not plan hosting on them.
 - The FalkorDB Cloud free tier is 100 MB and deletes idle instances after seven days; it is unfit for a judged demo.
 - Cohere trial keys allow 1,000 calls a month across all endpoints; never put them on the request path.
+- The Voyage API allows 3 requests a minute without a card; it is a fallback, not the primary query path.
+- Render free cannot run an embedding model: 0.1 CPU and 512 MB beside FalkorDB.
 - `graph` is a reserved word in Mermaid; never use it as a `classDef` name.

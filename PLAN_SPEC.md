@@ -273,14 +273,17 @@ flowchart TB
   end
 
   subgraph EXT["Free external services"]
-    WAI["Workers AI<br/>LLM · query embeddings · speech-to-text"]:::ext
+    WAI["Workers AI<br/>live LLM · speech-to-text"]:::ext
+    CO["Cohere<br/>second-model runs · judge"]:::ext
+    ENC["Encoder Space · HF ZeroGPU<br/>voyage-4-nano queries · reranker"]:::ext
+    VOY["Voyage API · voyage-4-lite<br/>same embedding space · fallback"]:::ext
     GH["GitHub · FalkorDB org<br/>live tenant source"]:::ext
     SNAP[("GitHub Releases<br/>snapshots + manifests")]:::store
     JRN[("Cloudflare D1<br/>memory journal")]:::store
   end
 
   subgraph BATCH["Kaggle · batch factory · never on the request path"]
-    JOBS["chunk · embed · bm25 · extract · speech twin · eval-batch"]:::batch
+    JOBS["chunk · voyage-4-nano embed · bm25 · extract<br/>speech twin · EmbeddingGemma 2 voice · eval-batch"]:::batch
   end
 
   subgraph SCHED["Schedulers"]
@@ -299,6 +302,9 @@ flowchart TB
   MEM -->|"compare-and-set writes"| FDB
   MEM -->|"append"| JRN
   AG -->|"locked model"| WAI
+  AG -.->|"comparison runs"| CO
+  RT -->|"query vector · rerank"| ENC
+  RT -.->|"fallback"| VOY
   API -->|"ETag sync"| GH
   JOBS -->|"sharded parquet + sha256"| SNAP
   SNAP -->|"restore on boot"| FDB
@@ -674,8 +680,9 @@ flowchart LR
 ```text
 query ─▶ principal bitmap (Redis BITOP over the principal's Spaces, as of D)
        ─▶ lexical  (FalkorDB full-text for Apex/live; BM25 sidecar for Redwood full text)
-       ─▶ dense    (FalkorDB vector index, EmbeddingGemma 300M, MRL-truncated)
+       ─▶ dense    (FalkorDB vector index over voyage-4-nano vectors; query vector from the encoder Space)
        ─▶ fusion   (reciprocal rank fusion, k=60; weights fixed by ablation, not tuned per question)
+       ─▶ rerank   (open cross-encoder; kept only if its ablation wins; graph-resolved answers skip it)
        ─▶ graph expansion (NEXT neighbours, REPLIES_TO thread, Claim/Decision links) — every hop re-checked against the bitmap
        ─▶ evidence pack (ordered spans with offsets) ─▶ agent / answerer
 ```
@@ -898,10 +905,13 @@ All of this runs as batch work, never in the request path.
 
 | Role | Default | Constraint |
 |---|---|---|
-| Answering and planning (benchmark runs) | One open-weights instruct model, self-hosted for batch runs and served on Cloudflare Workers AI for the live app. The model ID is pinned by ADR after the first probe | The same model for every call in a run |
-| Cross-model run | Cohere Command family | Published as a separate run, never mixed with others |
-| Judge (only where a benchmark requires one) | The benchmark's own judge prompt; a judge model from a different family than the answering model | Agreement with a second judge reported on a 10% sample |
-| Embeddings | EmbeddingGemma 300M (open weights, MRL 768/512/256/128): bulk on Kaggle, queries on Workers AI (`@cf/google/embeddinggemma-300m`). Cohere `embed-v4.0` as a measured ablation on Apex | Same weights for documents and queries. Parity: cosine ≥ 0.999 between the two runtimes on 1,000 shared texts (AC-MOD-01) |
+| Answering and planning | An open-weights instruct model on Cloudflare Workers AI, for the live app and benchmark runs; the same weights self-hosted on Kaggle when a run exceeds the free daily quota. Model ID pinned by ADR-0004 | The same model for every call in a run |
+| Second model | Cohere Command (trial key, 1,000 calls a month) | A separate published run on Apex, never mixed with others |
+| Judge (only where a benchmark requires one) | The benchmark's own judge prompt. Cohere judges open-model answers, so judge and answerer never share a family | Second-judge agreement reported on a 10% sample |
+| Text embeddings | **voyage-4-nano** (Apache-2.0, 340M, 32k context, MRL 2048/1024/512/256, quantization-aware int8 and binary): documents on Kaggle, queries on the encoder Space. The Voyage 4 family shares one embedding space, so voyage-4-lite on the Voyage API is a drop-in query fallback | AC-MOD-01: runtimes with the same weights agree at cosine ≥ 0.999; the API fallback costs ≤ 1 point of Recall@10 on the Apex probe set |
+| Embedding bake-off | EmbeddingGemma 2 (text tower) against voyage-4-nano on Apex gold spans and Redwood `expected_doc_ids`; judge-free Recall@10 and MRR | Winner recorded by ADR; the other stays as a published ablation |
+| Voice | EmbeddingGemma 2 audio tower: speaker identity and voice codes | Batch only |
+| Reranker | Open cross-encoder on the encoder Space (candidates: Qwen3-Reranker-0.6B, bge-reranker-v2-m3, both Apache-2.0); Voyage `rerank-2.5-lite` as fallback | Kept only if the Kaggle ablation raises Recall@10 or answer accuracy; tier-1 graph answers skip it |
 | Bulk extraction | Self-hosted on batch compute | Redwood never leaves the self-hosted or no-training boundary |
 
 **Model lock.**
@@ -909,7 +919,7 @@ All of this runs as batch work, never in the request path.
 - At run start the provider, model and decoding parameters are locked and hashed into the `Run` node.
 - On a 429 response, retry the same model with backoff. Never switch model mid-run.
 
-**Free-tier quotas** are budgeted before every run and logged after it: Workers AI daily neurons, Cohere trial calls (1,000 a month across endpoints), Kaggle GPU hours.
+**Free-tier quotas** are budgeted before every run and logged after it: Workers AI daily neurons, Cohere trial calls (1,000 a month across endpoints), Voyage tokens (200M free; 3 requests a minute without a card), ZeroGPU minutes (5 a day on a free account), Kaggle GPU hours.
 
 **Token accounting.**
 
@@ -1119,16 +1129,24 @@ Accessibility: WCAG 2.2 AA contrast, keyboard navigation, reduced-motion support
 | Web | Vercel Hobby | Static build on a global CDN. Custom domain by CNAME in the existing DNS zone. Rewrites `/api/*` and `/mcp` to the API, so the browser sees one origin. The site renders recorded results instantly, even while the API wakes |
 | API, MCP and FalkorDB | Render free web service: one Docker image built on the pinned FalkorDB image, with the API beside it under a two-process supervisor | 512 MB. Hosts Apex, the FalkorDB OSS live tenant and the memory graphs; a CI check fails if snapshots outgrow the budget. The schedulers keep it warm (750 free instance-hours cover one service for a month) |
 | Snapshots | GitHub Releases | Graph RDB snapshots and index shards with sha256 manifests, restored on boot (the free host has no persistent disk) |
+| Encoder Space | Hugging Face ZeroGPU Gradio Space (free accounts may host two) | Stateless: voyage-4-nano query encoder and the reranker, nothing else. The W0 probe decides CPU or GPU execution and logs quota use. The Voyage API is its fallback |
 | Memory journal | Cloudflare D1 | Append before acknowledge; replayed on boot ([SPEC:MEMORY]) |
 | Redwood (512k documents) | Kaggle and a stated reference machine | Too large for 512 MB. Published as recorded runs with proofs; `docker compose up` rebuilds it from the public dataset and replays any proof locally |
 | Batch compute | Kaggle ([SPEC:BATCH]) | Embeddings, speech, indexes, benchmark runs. Outputs are hash-manifested |
 | Schedules | GitHub Actions cron (public repository) and a Cloudflare Worker cron | Monitoring never depends on the host it monitors |
 | Engine matrix | FalkorDB 4.22.x primary; 6.0.x smoke tests in CI | Results for both published if the 6.x smoke tests pass |
 
+**Staying awake on free tiers (checked October 2026):**
+
+- **Render free:** 750 instance-hours per workspace per month, which covers one service for a 31-day month (744 h). It sleeps after 15 minutes without inbound requests and wakes in about a minute. It may restart at any time and has no persistent disk, hence snapshots and the journal. Exceeding the bandwidth allowance without a card suspends free services for the month, so the API serves JSON only; media and video come from CDNs.
+- **Keep-warm:** a Cloudflare Worker cron pings every 5 minutes (primary, punctual); GitHub Actions pings every 10 minutes as a backup, because scheduled workflows can run late under load.
+- **Vercel Hobby:** a static site never sleeps. Hobby cron runs at most once a day with ±59 minutes of precision, so it only triggers the nightly scoreboard.
+- **Encoder Space:** pinged on the same schedule as the API.
+
 **Rejected, with reason (ADR-0003, checked October 2026):**
 
 - **FalkorDB Cloud free tier:** 100 MB, stopped after one idle day, deleted after seven, no backups. Paid tiers start at 1 GB.
-- **Hugging Face Spaces:** Gradio and Docker Spaces now require a paid plan to create.
+- **Hugging Face Spaces as the API host:** Gradio and Docker Spaces now require a paid plan to create. Free accounts keep two ZeroGPU Gradio Spaces; one serves only the stateless encoder.
 - **Koyeb, Fly.io, Railway, hyperscaler trials:** a card is required, or the free compute expires.
 - **Coolify:** a strong self-hosting control plane, but it manages servers; it does not supply one. It remains an option for the reference machine.
 
@@ -1161,11 +1179,12 @@ Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parall
 
 | Job | Accelerator | Produces |
 |---|---|---|
-| `embed-apex` | GPU | Chunk embeddings for Apex and the live tenant (MRL ablation: 768/512/256/128) |
-| `embed-redwood` | GPU | Embeddings over the title and leading window of all 511,962 documents |
+| `embed-apex` | GPU | voyage-4-nano and EmbeddingGemma 2 chunk embeddings for Apex and the live tenant: the bake-off, plus the MRL and precision ablation (2048 → 256, float → binary) |
+| `embed-redwood` | GPU | voyage-4-nano embeddings over the title and leading window of all 511,962 documents |
 | `bm25-redwood` | CPU (high RAM) | The memory-mappable BM25 sidecar over full Redwood text |
 | `extract-redwood` | CPU, then GPU | Deterministic extraction everywhere; model extraction only on ambiguous spans; quote check on every edge |
 | `speech-twin` | GPU | Synthetic speech for 208 meetings → recognition → utterance spans → audio embeddings → Opus clips |
+| `rerank-ablation` | GPU | Recall@10 and answer accuracy with and without each candidate reranker |
 | `eval-batch` | GPU | The pinned open-weights model served locally; benchmark suites as per-question JSONL with the model lock |
 | `heldout-company` | GPU | Optional second simulated company for the held-out set |
 
