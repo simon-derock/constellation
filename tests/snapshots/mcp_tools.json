@@ -1,0 +1,139 @@
+[
+  {
+    "description": "Did an expected response event follow a trigger event? Returns the decision, the response if any, and the artifact space that was searched.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "response_type": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "trigger": {
+          "description": "event id, e.g. EVT-8-incident_opened-1219",
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "trigger",
+        "response_type"
+      ],
+      "type": "object"
+    },
+    "name": "absence",
+    "read_only": true
+  },
+  {
+    "description": "Would removing a cause event have changed an effect event under a causal mechanism? Returns whether they are linked and any same-mechanism alternative causes.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "cause": {
+          "description": "event id, e.g. EVT-8-incident_opened-1219",
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "effect": {
+          "description": "event id, e.g. EVT-8-incident_opened-1219",
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "link_type": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "cause",
+        "effect",
+        "link_type"
+      ],
+      "type": "object"
+    },
+    "name": "counterfactual",
+    "read_only": true
+  },
+  {
+    "description": "The latest observed escalation path starting at a person on or before a simulation day.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "simulation day (Apex runs -579..60)",
+          "maximum": 1000,
+          "minimum": -1000,
+          "type": "integer"
+        },
+        "person": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "person",
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "escalation_path",
+    "read_only": true
+  },
+  {
+    "description": "Who owned a domain on a simulation day, with origin, evidence and whether the start is known.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "simulation day (Apex runs -579..60)",
+          "maximum": 1000,
+          "minimum": -1000,
+          "type": "integer"
+        },
+        "domain": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "domain",
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "owner_as_of",
+    "read_only": true
+  },
+  {
+    "description": "Artifacts inside an actor's visibility cone on a simulation day: what they could have known.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "day": {
+          "description": "simulation day (Apex runs -579..60)",
+          "maximum": 1000,
+          "minimum": -1000,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "actor",
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "who_could_see",
+    "read_only": true
+  }
+]
