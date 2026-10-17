@@ -58,3 +58,13 @@ def test_graph_cone_equals_the_ported_oracle_for_every_actor(apex: ApexCorpus, l
 
 def test_external_actors_have_an_empty_cone(loaded: ReadPort) -> None:
     assert loaded.run(GRAPH, cone_query(), {"actor": "Nora", "day": 60}).rows in ((), (([],),))
+
+
+@pytest.mark.ac("AC-INV-03")
+def test_cone_results_are_canonical_so_proofs_survive_a_reload(loaded: ReadPort) -> None:
+    rows = loaded.run(GRAPH, cone_query(), {"actor": "Jax", "day": 30}).rows
+    visible = rows[0][0]
+    assert isinstance(visible, list)
+    ids = [str(v) for v in visible]
+    assert ids == sorted(ids)
+    assert len(ids) > 0
