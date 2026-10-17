@@ -177,7 +177,7 @@ If FalkorDB is removed, nothing works:
 - **Agents and interfaces:**
   - A bounded agent finite-state machine
   - FastMCP tools generated from the `.cypher` catalogue
-  - Approval-gated actions: a sandbox GitHub repository and a Discord webhook
+  - Approval-gated actions: labelled issues in this repository (`agent-action`) and a Discord webhook
 - **Speech twin:** for Apex meetings, covering synthetic speech, speech recognition, utterance spans, voice identity and playable provenance.
 - **Evaluation:**
   - EpistemicBench (OrgForge)
@@ -350,7 +350,7 @@ flowchart TB
 - `Clock`
 - `LLM`: locked per run.
 - `Embedder`
-- `ActionSink`: GitHub sandbox, Discord, dry-run.
+- `ActionSink`: labelled GitHub issues in this repository, Discord, dry-run.
 - `BlobStore`: snapshots, indexes, audio.
 - `Ledger`: runs and proofs.
 
@@ -796,7 +796,8 @@ stateDiagram-v2
 
 **Actions.**
 
-- Actions are typed and proposed with graph evidence: route a ticket to an owner, escalate along `ESCALATES_TO`, file an issue in the sandbox repository, notify Discord.
+- Actions are typed and proposed with graph evidence: route a ticket to an owner, escalate along `ESCALATES_TO`, file an issue in this repository under the `agent-action` label, notify Discord.
+- The GitHub token is fine-grained to issues on this repository only. Executions are capped per day, so a faulty plan cannot flood the tracker; every filed issue links back to its proof.
 - Approval writes `(:Action {status: 'approved'})` with the approver and time. Execution is idempotent on `payload_hash`.
 
 | AC | Acceptance |
@@ -905,7 +906,7 @@ All of this runs as batch work, never in the request path.
 | Answering and planning | An open-weights instruct model on Cloudflare Workers AI, for the live app and benchmark runs; the same weights self-hosted on Kaggle when a run exceeds the free daily quota. Model ID pinned by ADR-0004 | The same model for every call in a run |
 | Second model | Cohere Command (trial key, 1,000 calls a month) | A separate published run on Apex, never mixed with others |
 | Judge (only where a benchmark requires one) | The benchmark's own judge prompt. Cohere judges open-model answers, so judge and answerer never share a family | Second-judge agreement reported on a 10% sample |
-| Text embeddings | **Qwen3-Embedding-0.6B** (Apache-2.0, 32k context, MRL 32–1024, instruction-aware): documents on Kaggle from the open weights, queries live on Workers AI (`@cf/qwen/qwen3-embedding-0.6b`). One set of weights, two runtimes, zero paid calls | AC-MOD-01: on the probe set, Recall@10 with Workers AI query vectors is within 0.5 points of Recall@10 with locally computed query vectors; mean cosine between the two is reported |
+| Text embeddings | **Qwen3-Embedding-0.6B** (Apache-2.0, 32k context, MRL 32–1024, instruction-aware): the historical corpus on Kaggle from the open weights; queries and the few new live-tenant documents per sync on Workers AI (`@cf/qwen/qwen3-embedding-0.6b`, 1,024 dimensions, verified 17 Oct). One set of weights, two runtimes, zero paid calls | AC-MOD-01: on the probe set, Recall@10 with Workers AI query vectors is within 0.5 points of Recall@10 with locally computed query vectors; mean cosine between the two is reported |
 | Embedding bake-off | Every open model that is also free on Workers AI: Qwen3-Embedding-0.6B, bge-m3 (MIT, 8k), EmbeddingGemma-300m. Scored on Apex gold spans and Redwood `expected_doc_ids` (judge-free Recall@10, MRR) | Winner recorded by ADR; whichever wins deploys the same way. The others stay as published ablations |
 | Voice | EmbeddingGemma 2 audio tower: speaker identity and voice codes | Batch only |
 | Reranker | `bge-reranker-base` (MIT): live on Workers AI (`@cf/baai/bge-reranker-base`), the same weights on Kaggle for benchmark runs | Kept only if the Kaggle ablation raises Recall@10 or answer accuracy; tier-1 graph answers skip it |
@@ -1058,7 +1059,7 @@ Both answer keys were generated synthetically.
 | Permission bypass via expansion | Every expansion hop is re-checked against the bitmap; the bitmap-vs-graph invariant is tested |
 | Secret leakage | Secrets live only in platform secret stores. Responses and logs pass through a credential-pattern redactor. `gitleaks` runs in CI |
 | Supply chain | `uv.lock` and `pnpm-lock` committed. `osv-scanner` and `pip-audit` in CI. Container images pinned by digest |
-| Abuse of the public demo | Per-IP rate limits, input length caps, read-only public role, actions reachable only by the sandbox principal |
+| Abuse of the public demo | Per-IP rate limits, input length caps, read-only public role, actions reachable only by the demo principal, and only after approval |
 | Benchmark contamination | Canary-marked content stays in the self-hosted or no-training boundary. Bulk corpus text is never published |
 [/SPEC:SECURITY]
 
