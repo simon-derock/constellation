@@ -1,3 +1,4 @@
+from constellation.brain.absence import Expectation
 from constellation.brain.access import (
     ARTIFACT_SUBSYSTEM,
     BROADCAST_CONFIG,
@@ -30,6 +31,12 @@ MERGE (e)-[pr:PRODUCED {key: r.key}]->(a) SET pr.subsystem = r.subsystem"""
 
 _CAUSES = """UNWIND $rows AS r MATCH (c:Event {eid: r.cause}), (e:Event {eid: r.effect})
 MERGE (c)-[x:CAUSES {link_type: r.link_type}]->(e) SET x.day = r.day"""
+
+_EXPECTS = """UNWIND $rows AS r MATCH (t:Event {eid: r.trigger})
+MERGE (x:Expectation {key: r.key}) SET x.response_type = r.response_type, x.responded = r.responded,
+x.search_space = r.search_space MERGE (t)-[:EXPECTS]->(x)"""
+_MET_BY = """UNWIND $rows AS r MATCH (x:Expectation {key: r.key}), (e:Event {eid: r.response})
+MERGE (x)-[:MET_BY]->(e)"""
 
 _OWNS = """UNWIND $rows AS r MERGE (p:Person {name: r.owner}) MERGE (d:Domain {name: r.domain})
 MERGE (p)-[o:OWNS {from: r.from}]->(d)
@@ -149,3 +156,21 @@ def load_causes(port: WritePort, graph: str, edges: list[CausalEdge]) -> None:
     port.merge(
         graph, _CAUSES, [{"cause": e.cause, "effect": e.effect, "link_type": e.link_type, "day": e.day} for e in edges]
     )
+
+
+def load_expectations(port: WritePort, graph: str, found: list[Expectation]) -> None:
+    # search spaces are stored as given: they are what the agent must show it checked
+    port.ensure_index(graph, "Expectation", "key")
+    rows = [
+        {
+            "key": f"{x.trigger}|{x.response_type}",
+            "trigger": x.trigger,
+            "response_type": x.response_type,
+            "responded": x.responded,
+            "search_space": list(x.search_space),
+            "response": x.response_event,
+        }
+        for x in found
+    ]
+    port.merge(graph, _EXPECTS, rows)
+    port.merge(graph, _MET_BY, [r for r in rows if r["response"] is not None])
