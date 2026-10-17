@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from constellation.brain.access import JIRA_PROJECT_ACCESS, jira_project_visible, subsystem_access
 from constellation.graph.catalogue import cypher
 from constellation.graph.read import ReadPort, ReadResult, Value
+from constellation.proof import ProofQuery
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,9 +35,13 @@ class Toolbox:
     graph: str
     perspective: Perspective | None = None
     calls: list[ToolRecord] = field(default_factory=list)
+    # every catalogue query this toolbox ran, with its result hash: the machine-checkable half of an answer
+    queries: list[ProofQuery] = field(default_factory=list)
 
     def _run(self, name: str, params: Mapping[str, object]) -> ReadResult:
-        return self.port.run(self.graph, cypher(name), dict(params))
+        result = self.port.run(self.graph, cypher(name), dict(params))
+        self.queries.append(ProofQuery(name, dict(params), result.sha256))
+        return result
 
     def _record(
         self,
