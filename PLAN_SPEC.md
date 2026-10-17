@@ -74,7 +74,7 @@ Rules:
 1. **A target is never presented as a result.** A number appears in the README, on the site or in the video only after a recorded run produced it. Every recorded run includes the command, commit SHA, dataset revision, model IDs, and a per-question artifact.
 2. Results are dated audit files in `docs/audits/`. This specification stays stable; current state lives in `STATE.md`.
 3. Negative results are published next to positive ones.
-4. Every acceptance criterion has an ID (`AC-<area>-<nn>`). CI fails if any AC lacks a test that references it (see [SPEC:ENGINEERING]).
+4. Every acceptance criterion has an ID (`AC-<area>-<nn>`). CI fails if a test cites an unknown AC; the release gate fails if any AC lacks a test (see [SPEC:ENGINEERING]).
 
 Current status of every AC: **Missing**. The specification freezes before the first line of code.
 [/SPEC:STATUS]
@@ -1200,11 +1200,11 @@ Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parall
 ### 22.1 Spec-driven, test-first
 
 1. Every AC in this file has an ID.
-2. Tests declare `@pytest.mark.ac("AC-…")`. `scripts/check_traceability.py` fails CI if any AC has no test, or if a test names an unknown AC.
+2. Tests declare `@pytest.mark.ac("AC-…")`. `tools/traceability.py` reads them statically: every commit fails on an unknown AC and prints coverage; `--strict`, the release gate, also fails on any AC without a test.
 3. Each AC follows the same cycle:
-   - **Red:** a failing test commit with `xfail(strict=True)`.
-   - **Green:** the implementation commit, which removes the `xfail`.
-   - **Refactor:** an optional third commit.
+   - **Red:** the test runs and fails locally first; the commit body records the red run.
+   - **Green:** the implementation lands with its test in one green commit.
+   - **Refactor:** an optional follow-up commit.
 4. Every commit is green.
 5. Test kinds:
    - Unit tests.
@@ -1219,7 +1219,7 @@ Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parall
 Every change is a **block**: one concern, one AC, about 200 changed lines at most. No block starts until the previous one is green in CI.
 
 1. **Ready.** The AC is written; the contract (types, Cypher, schema) is sketched inside the test; inputs and expected outputs are pinned.
-2. **Red.** The failing test is committed with `xfail(strict=True)`, proving it can fail.
+2. **Red.** The test runs and fails before the implementation exists, proving it can fail; the commit body records it.
 3. **Green.** The smallest implementation that passes. No speculative options, no unused parameters.
 4. **Prove.** The full local chain. Accuracy and performance blocks also record a before-and-after measurement in the ledger.
 5. **Review.** Read the diff as a reviewer: names, invariants stated in comments, error paths, no dead code, no secrets. Ask what breaks it at ten times the data.
@@ -1242,13 +1242,7 @@ Every change is a **block**: one concern, one AC, about 200 changed lines at mos
 ### 22.4 Local and CI quality chain
 
 ```bash
-uv run ruff check && uv run ruff format --check \
- && uv run mypy --strict src tests \
- && uv run pytest -q \
- && uv run lint-imports && uv run deptry src \
- && uv run vulture src --min-confidence 80 && uv run bandit -q -r src \
- && uv run python scripts/check_traceability.py
-pnpm -C web lint && pnpm -C web typecheck && pnpm -C web test
+scripts/gate.sh   # ruff, format, mypy --strict, pytest, vulture, bandit, deptry, traceability
 ```
 
 CI (GitHub Actions) runs the same chain, plus `gitleaks`, `osv-scanner`, integration tests against FalkorDB 4.22.x and a 6.0.x smoke test, and a check that the schema diagram has not drifted.
