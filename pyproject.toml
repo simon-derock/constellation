@@ -37,6 +37,8 @@ packages = ["src/constellation"]
 line-length = 120
 target-version = "py313"
 src = ["src", "tests", "tools"]
+# verbatim third-party code is regenerated, never edited; our rules do not apply to it
+extend-exclude = ["src/constellation/_vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "PT", "N", "C4", "PERF", "PIE", "RET", "TID"]
@@ -49,6 +51,10 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "PT", "N", "C4", "PE
 python_version = "3.13"
 strict = true
 mypy_path = ["src", "tools"]
+
+[[tool.mypy.overrides]]
+module = ["constellation._vendor.*"]
+ignore_errors = true
 
 [[tool.mypy.overrides]]
 # falkordb-py ships no type information; ReadPort is the typed boundary around it
@@ -67,4 +73,5 @@ markers = [
 
 [tool.vulture]
 paths = ["src", "tools"]
+exclude = ["src/constellation/_vendor/"]
 min_confidence = 80

@@ -6,6 +6,6 @@ uv run ruff format --check
 uv run mypy src tests tools
 uv run pytest "$@"
 uv run vulture
-uv run bandit -q -r src
+uv run bandit -q -r src -x src/constellation/_vendor
 uv run deptry src
 uv run python tools/traceability.py
