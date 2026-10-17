@@ -1,46 +1,62 @@
-# grep -n '\[SPEC:' PLAN_SPEC.md   <-- jump to any section
 # CONSTELLATION — The Company Brain That Proves Every Answer
-# Canonical specification, acceptance criteria and delivery plan
-# Graph Hacks: Context for AI Agents (WeMakeDevs × FalkorDB) — Tracks 01, 02 and 03
+
+[SPEC:INDEX] — jump to any section: `grep -n '\[SPEC:' PLAN_SPEC.md`
+
+| § | Anchor | What it settles |
+|---|---|---|
+| — | [SPEC:STANDARD] | The standard every line of this repository is held to |
+| 0 | [SPEC:STATUS] | Status labels and the rule that a target is never a result |
+| 1 | [SPEC:MISSION] | Thesis, track-to-capability map, why FalkorDB is load-bearing |
+| 2 | [SPEC:CONSTITUTION] | Fourteen non-negotiable rules |
+| 3 | [SPEC:SCOPE] | Built now, deferred, never |
+| 4 | [SPEC:DATA] | Three tenants, derived sets, licences, pseudonyms, canary |
+| 5 | [SPEC:ARCH] | Containers, bounded contexts, ports |
+| 6 | [SPEC:GRAPH] | Nodes, edges, epistemic levels, bitemporal rules, indexes |
+| 7 | [SPEC:CYPHER] | The Cypher and algorithms the product relies on |
+| 8 | [SPEC:INGEST] | Event-sourced, idempotent, quote-verified ingestion |
+| 9 | [SPEC:RETRIEVAL] | Permission-exact hybrid retrieval |
+| 10 | [SPEC:BRAIN] | Track 03: who owns, who knows, what was decided, what changed |
+| 11 | [SPEC:AGENTS] | Track 01: how agents reach Cypher, act and explain |
+| 12 | [SPEC:MEMORY] | Track 02: memory layers, handoffs, concurrency, tenancy |
+| 13 | [SPEC:AUDIO] | Speech twin and playable provenance |
+| 14 | [SPEC:MODELS] | Model roles, model lock, token accounting |
+| 15 | [SPEC:PROOF] | The proof and trace every answer carries |
+| 16 | [SPEC:EVAL] | Gate sheet: ≥99% accuracy, 100% invariants, audit protocol |
+| 17 | [SPEC:SECURITY] | Threats and controls |
+| 18 | [SPEC:API] | HTTP and MCP contracts |
+| 19 | [SPEC:WEB] | Public app and the demo film |
+| 20 | [SPEC:DEPLOY] | Self-hosted FalkorDB, zero-cost topology, schedules |
+| 21 | [SPEC:BATCH] | Kaggle batch jobs: embeddings, speech, indexes, benchmark runs |
+| 22 | [SPEC:ENGINEERING] | Spec-driven TDD, commits, comments, quality chain, layout |
+| 23 | [SPEC:WAVES] | Delivery waves and exit gates |
+| 24 | [SPEC:DONE] | Definition of done |
+| 25 | [SPEC:RISKS] | Risks and controls |
+| 26 | [SPEC:DELIVERABLES] | Submission checklist mapped to the rules |
+| 27 | [SPEC:DISCLOSURE] | Prior art and AI-assistance disclosure |
+| 28 | [SPEC:REFERENCES] | Sources |
+[/SPEC:INDEX]
 
 > **What's true, who knew it, and when — exact to the bit, replayable to the source, on FalkorDB.**
 
-Constellation is one FalkorDB-native system entered in all three tracks. One graph model and one evidence contract back three products:
+Graph Hacks: Context for AI Agents (WeMakeDevs × FalkorDB) — entered in **Track 01, Track 02 and Track 03**. One graph model and one evidence contract power three products:
 
 - **Company Brain (Track 03).** Ownership, knowledge, decisions and freshness across docs, tickets, chats, code and meetings.
-- **Agents That Act (Track 01).** Multi-hop agents whose MCP tools are Cypher queries and graph algorithms, and whose actions are approval-gated and replayable.
-- **Agent Memory and Coordination (Track 02).** Per-tenant and per-user memory graphs with episodic, semantic and procedural layers, shared state, handoffs, and concurrency without lost updates.
+- **Agents That Act (Track 01).** Multi-hop agents whose MCP tools are Cypher and graph algorithms; every action approval-gated and replayable.
+- **Agent Memory and Coordination (Track 02).** Per-tenant and per-user memory graphs: episodic, semantic, procedural; shared state, handoffs, zero lost updates.
 
-[SPEC:INDEX]
-- [SPEC:STATUS]        Status labels and the rule "a target is not a result"
-- [SPEC:MISSION]       Thesis, the three tracks and the capability map
-- [SPEC:CONSTITUTION]  Non-negotiable rules
-- [SPEC:SCOPE]         In scope, deferred, non-goals
-- [SPEC:DATA]          Tenants, derived sets, licences, privacy, canary handling
-- [SPEC:ARCH]          Architecture, bounded contexts, ports, runtime
-- [SPEC:GRAPH]         Graph data model, bitemporal rules, indexes
-- [SPEC:CYPHER]        Cypher and algorithm catalogue (the queries the product relies on)
-- [SPEC:INGEST]        Event-sourced ingestion and identity
-- [SPEC:RETRIEVAL]     Permission-exact hybrid retrieval
-- [SPEC:BRAIN]         Track 03 capabilities
-- [SPEC:AGENTS]        Track 01 capabilities
-- [SPEC:MEMORY]        Track 02 capabilities
-- [SPEC:AUDIO]         Speech twin, playable provenance, voice identity
-- [SPEC:MODELS]        LLM and embedding policy, model lock, token accounting
-- [SPEC:PROOF]         Answer proof and trace schema
-- [SPEC:EVAL]          Benchmarks, metrics, 99% gates, audit protocol
-- [SPEC:SECURITY]      Threat model, guardrails, data protection
-- [SPEC:API]           HTTP and MCP contracts
-- [SPEC:WEB]           Public web surface and demo video
-- [SPEC:DEPLOY]        Free hosting topology and scheduled jobs
-- [SPEC:ENGINEERING]   SDD/TDD, commit protocol, quality chain, CI, layout
-- [SPEC:WAVES]         Delivery waves and exit gates
-- [SPEC:DONE]          Definition of done
-- [SPEC:RISKS]         Risks and controls
-- [SPEC:DELIVERABLES]  Submission checklist mapped to the rules
-- [SPEC:DISCLOSURE]    Prior art and AI-assistance disclosure
-- [SPEC:REFERENCES]    Sources
-[/SPEC:INDEX]
+---
+
+[SPEC:STANDARD]
+## The Standard
+
+Constellation is built to be the reference company brain on FalkorDB: the system others are measured against, not one more chatbot over documents.
+
+- **Singular by construction.** The only company brain where every answer is a replayable proof of what was true, who knew it, and when — down to the permission bit, the character offset and the audio millisecond.
+- **Judged by keys we did not write.** Two external benchmarks with public leaderboards, and a live tenant anyone can audit: FalkorDB's own open-source organisation.
+- **99 or it is not done.** Every accuracy gate ≥99%. Every correctness invariant 100%. A miss becomes a root cause, a general fix and a regression test — never a patched question.
+- **Every line earns its place.** No component without an ablation behind it, no number without a recorded run, no comment that restates the code.
+- **Ship-grade from the first commit.** Public trunk, green on every commit, every decision written down with the alternative it beat.
+[/SPEC:STANDARD]
 
 ---
 
@@ -516,6 +532,18 @@ query ─▶ principal bitmap (Redis BITOP over the principal's Spaces, as of D)
 - `VERIFY` re-runs the cited Cypher and compares the result hashes.
 - If the answer cannot be verified, the FSM abstains with the reason.
 
+**How an agent reaches Cypher.** The model chooses *what to ask*; it almost never writes the query text.
+
+| Tier | Who writes the Cypher | When it is used | Guarantee |
+|---|---|---|---|
+| 1. Catalogue | Engineers. Reviewed `.cypher` files, snapshot-tested | Default for every question a template covers | The model only picks a tool and fills typed arguments. Names resolve to IDs in a deterministic linker (full-text + alias index), never in the model. Replay is exact by construction |
+| 2. Composition | Still the catalogue | Multi-hop questions | The FSM chains tools; each step passes IDs and days, never free text, to the next |
+| 3. Guarded generation (`cypher_ro`) | The model, from a schema card read from the live graph and catalogue exemplars (never benchmark questions) | Long-tail questions no template covers, on principals with full visibility of the tenant | Five gates before a row is returned: `GRAPH.EXPLAIN` parses it without running it; a token and AST allowlist rejects `CREATE MERGE SET DELETE REMOVE DROP LOAD CSV` and unlisted procedures; a `LIMIT ≤ 200` is enforced; it runs as `GRAPH.RO_QUERY … TIMEOUT`, so the engine itself refuses writes; every returned artifact or chunk ID is re-checked against the bitmap |
+| 4. Promotion | Engineers, from evidence | A generated query that verified on several distinct tasks | It is stored as a `Procedure` (procedural memory, Track 02) and proposed as a catalogue entry; it joins tier 1 only after review |
+
+- Tier 3 is disabled for restricted principals: an aggregate over unreadable rows could leak a count, so the zero-leak invariant is kept by construction, not by filtering.
+- The share of answers served by each tier is published with every run.
+
 **Tools.**
 
 - Tools are generated from the `.cypher` catalogue and the algorithm table. Graph tools are annotated `readOnlyHint`; action tools are annotated `destructiveHint` and require approval.
@@ -785,15 +813,24 @@ Accessibility: WCAG 2.2 AA contrast, keyboard navigation, reduced-motion support
 ---
 
 [SPEC:DEPLOY]
-## 20. Free hosting topology and scheduled jobs
+## 20. Hosting topology and scheduled jobs
+
+**FalkorDB is self-hosted.** We run the pinned open-source image ourselves, beside the API, so the product owns its data plane end to end.
 
 | Component | Host | Notes |
 |---|---|---|
-| Web | Vercel Hobby | Custom domain via a CNAME in the existing DNS zone. Rewrites `/api/*` and `/mcp` to the API host |
-| API, MCP and FalkorDB | Hugging Face Space, free CPU tier (16 GB RAM), running FalkorDB in-process | Graphs are restored at boot from versioned RDB snapshots in a private dataset store. Fallback is decided by the hosting probe in W0 (ADR-0003) |
-| Batch compute | Kaggle (CPU, and GPU within quota) | Embeddings, speech, extraction, benchmark runs. Outputs are hash-manifested |
-| Schedules | GitHub Actions cron (public repository) and a Cloudflare Worker cron | Not tied to any single host |
+| Web | Vercel Hobby | Custom domain via a CNAME in the existing DNS zone. Rewrites `/api/*` and `/mcp` to the API host, so the browser sees one origin |
+| API, MCP and FalkorDB | One 16 GB VM (Google Cloud `e2-standard-4`, `asia-south1`), Docker Compose: FalkorDB (internal network only), FastAPI + FastMCP, worker, `supercronic`, Caddy for TLS | Runs on the provider's new-account trial credit, which covers this VM for the whole judging window. Snapshots go to object storage; any host restores from them in minutes |
+| Zero-card fallback | Render free web service (512 MB): FalkorDB + API in one container, serving Apex, the live tenant and memory graphs | Redwood is then served as recorded runs plus a downloadable snapshot for local replay. Chosen in ADR-0003 |
+| Batch compute | Kaggle ([SPEC:BATCH]) | Embeddings, speech, indexes, benchmark runs. Outputs are hash-manifested |
+| Schedules | `supercronic` on the VM, GitHub Actions cron (public repository), Cloudflare Worker cron | Monitoring never depends on the host it monitors |
 | Engine matrix | FalkorDB 4.22.x primary; 6.0.x smoke tests in CI | Results for both published if the 6.x smoke tests pass |
+
+**Rejected, with reason (ADR-0003):**
+
+- **FalkorDB Cloud free tier:** 100 MB, stopped after one idle day, deleted after seven, no backups. It cannot hold Redwood or survive a judging window. Paid tiers start at 1 GB.
+- **Hugging Face Spaces:** Gradio and Docker Spaces now require a paid plan to create.
+- **Serverless platforms:** no place for a resident graph; every cold start would reload it.
 
 **Scheduled jobs:**
 
@@ -808,8 +845,41 @@ Accessibility: WCAG 2.2 AA contrast, keyboard navigation, reduced-motion support
 
 ---
 
+[SPEC:BATCH]
+## 21. Batch compute on Kaggle
+
+Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parallel or GPU-bound runs as a Kaggle job. Nothing on the request path depends on Kaggle.
+
+**Mechanics.**
+
+1. Each job is a script in `jobs/<name>/` with a `kernel-metadata.json`: a private kernel, the accelerator, internet on, and pinned inputs.
+2. `kaggle kernels push` launches it. `kaggle kernels status` polls it. `kaggle kernels output` collects it.
+3. Inputs are pulled inside the job at a pinned dataset revision, or attached as a private Kaggle dataset.
+4. Output is sharded Parquet plus `manifest.json` (sha256 per shard, row counts, model ID, code SHA).
+5. Jobs checkpoint per shard. A rerun skips every shard whose hash already verifies, so a session limit costs minutes, not the job.
+6. The loader refuses any shard whose hash does not match the manifest.
+
+| Job | Accelerator | Produces |
+|---|---|---|
+| `embed-apex` | GPU | Chunk embeddings for Apex and the live tenant (MRL ablation: 768/512/256/128) |
+| `embed-redwood` | GPU | Embeddings over the title and leading window of all 511,962 documents |
+| `bm25-redwood` | CPU (high RAM) | The memory-mappable BM25 sidecar over full Redwood text |
+| `extract-redwood` | CPU, then GPU | Deterministic extraction everywhere; model extraction only on ambiguous spans; quote check on every edge |
+| `speech-twin` | GPU | Synthetic speech for 208 meetings → recognition → utterance spans → audio embeddings → Opus clips |
+| `eval-batch` | GPU | The pinned open-weights model served locally; benchmark suites as per-question JSONL with the model lock |
+| `heldout-company` | GPU | Optional second simulated company for the held-out set |
+
+**Rules.**
+
+- Redwood jobs and outputs stay private (canary rule, [SPEC:DATA]).
+- GPU hours are budgeted per job before launch and logged after.
+- A batch result enters the scoreboard only through the same ledger and manifest checks as a local run.
+[/SPEC:BATCH]
+
+---
+
 [SPEC:ENGINEERING]
-## 21. Engineering system
+## 22. Engineering system
 
 ### 21.1 Spec-driven, test-first
 
@@ -854,10 +924,15 @@ CI (GitHub Actions) runs the same chain, plus `gitleaks`, `osv-scanner`, integra
 
 **Code style:**
 
-- Python 3.13 via `uv`.
-- `#` comments explain contracts and rationale. No docstrings in application code.
-- Strict typing.
-- No wrapper abstractions without a second caller.
+- Python 3.13 via `uv`. Strict typing. No wrapper abstraction without a second caller.
+- **No docstrings, no banner blocks.** Notes are inline comments in the language's own symbol: `#` in Python, YAML and shell; `//` in TypeScript and Cypher.
+- **Comments carry what the code cannot say.** A comment states a contract, an invariant, a unit or the reason behind a non-obvious choice. It never narrates the next line.
+
+```python
+# half-open [from, to): on a handover day the new owner answers
+# RO_QUERY on purpose: the engine refuses writes even if a template regresses
+# bit i ⇔ Artifact.ix == i; rebuilt from CAN_READ, never edited in place
+```
 
 ### 21.4 Repository layout
 
@@ -882,7 +957,7 @@ constellation/
 ---
 
 [SPEC:WAVES]
-## 22. Delivery waves
+## 23. Delivery waves
 
 Each wave ends with something deployable. No wave starts until the previous wave's exit gate passes.
 
@@ -902,7 +977,7 @@ Waves W1–W4 iterate the miss → root cause → general fix → regression tes
 ---
 
 [SPEC:DONE]
-## 23. Definition of done
+## 24. Definition of done
 
 - Every AC has a passing test or a recorded run; `STATE.md` shows its status.
 - The gate sheet ([SPEC:EVAL]) is published with raw and audited scores, misses and root causes.
@@ -915,13 +990,13 @@ Waves W1–W4 iterate the miss → root cause → general fix → regression tes
 ---
 
 [SPEC:RISKS]
-## 24. Risks and controls
+## 25. Risks and controls
 
 | Risk | Control |
 |---|---|
 | Synthetic gold-label noise caps measurable accuracy | Gold-dispute audit with quoted evidence; always publish raw and audited scores |
 | Overfitting to public questions | No question text in prompts; paraphrase, unanswerable and held-out sets; run-over-run diffs |
-| Free host limits (memory, sleep, cold start) | Snapshots in a dataset store; fast restore; keep-alive from the scheduler; fallback host decided by ADR |
+| Host limits or trial-credit expiry | Snapshots in object storage restore on any host in minutes; zero-card fallback host defined in ADR-0003 |
 | Redwood scale versus free memory | BM25 sidecar memory-mapped; vectors over leading windows at MRL dimension; hot-memory figure published |
 | Engine version drift (4.22 vs 6.x) | Pinned image digests; procedure-signature snapshots; 6.x smoke matrix |
 | Model drift or rate limits | Model lock per run; retry on the same model; batch runs on self-hosted weights |
@@ -933,7 +1008,7 @@ Waves W1–W4 iterate the miss → root cause → general fix → regression tes
 ---
 
 [SPEC:DELIVERABLES]
-## 25. Submission checklist (mapped to the official rules)
+## 26. Submission checklist (mapped to the official rules)
 
 - [ ] Public source repository — `github.com/simon-derock/constellation`
 - [ ] README with setup instructions and the graph data model
@@ -948,7 +1023,7 @@ Waves W1–W4 iterate the miss → root cause → general fix → regression tes
 ---
 
 [SPEC:DISCLOSURE]
-## 26. Prior art and disclosure
+## 27. Prior art and disclosure
 
 - **Prior art.** The author previously built *Stellium* (an agentic GraphRAG system on TigerGraph) and *Lunarbit* (an evidence-verifiable commerce GraphRAG system on Neo4j). Constellation reuses their engineering practices: status labels, measurement discipline, a constitution and a run ledger. It reuses none of their code. All of Constellation's FalkorDB work is new work done during the event.
 - **AI assistance.** AI coding assistants are used during development, as the rules allow, and are disclosed in the README. The author reviews and verifies every change and can explain the code, the graph model, the queries and the architecture decisions.
@@ -958,7 +1033,7 @@ Waves W1–W4 iterate the miss → root cause → general fix → regression tes
 ---
 
 [SPEC:REFERENCES]
-## 27. References
+## 28. References
 
 - Hackathon: https://www.wemakedevs.org/hackathons/falkordb · rules: https://www.wemakedevs.org/hackathons/falkordb/rules
 - FalkorDB docs (Cypher, indexes, algorithms, `GRAPH.RO_QUERY`, `GRAPH.COPY`): https://docs.falkordb.com
