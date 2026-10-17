@@ -3,7 +3,7 @@ from pathlib import Path
 
 # regenerate with tools/vendor_orgforge.py and update this pin together; a hand edit fails here
 VENDORED = Path("src/constellation/_vendor/orgforge_causal.py")
-PINNED_SHA256 = "bec879244c4ee773e159423d68eaf142b9f58d3e0bb876ccd4c4219499926d04"
+PINNED_SHA256 = "ee8e03a499df5c5039cf95d8b9381d0ee481295ffaa8dd793b3bdaa194ab14e4"
 
 
 def test_vendored_orgforge_code_is_byte_identical_to_its_generation() -> None:

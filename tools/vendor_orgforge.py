@@ -34,7 +34,7 @@ import random
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger("orgforge.vendored")
 # nothing is stripped: generated labels carry unstripped export paths
@@ -43,8 +43,8 @@ BASE = Path("/__orgforge_export_root__")
 CONFIG = {{"org_chart": {{}}}}
 
 
-class SimEvent:  # structural stand-in for orgforge.memory.SimEvent
-    pass
+# upstream duck-types events; any object with SimEvent's attributes is accepted
+SimEvent = Any
 
 
 """
