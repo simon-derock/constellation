@@ -1,5 +1,6 @@
 import hashlib
 import json
+import random
 import re
 import threading
 import time
@@ -24,6 +25,7 @@ _TEMPLATE_INDEXES = (
     ("Procedure", "task"),
 )
 _template_lock = threading.Lock()
+_JITTER = random.SystemRandom()
 
 
 class ConflictError(Exception):
@@ -100,10 +102,17 @@ class MemoryStore:
                     port.ensure_index(_TEMPLATE, label, prop)
         try:
             self._db.select_graph(_TEMPLATE).copy(name)
-        except ResponseError:
+        except ResponseError as err:
             # a concurrent provision of the same principal won the copy; the graph existing is the desired state
-            if name not in self._db.list_graphs():
+            if name in self._db.list_graphs():
+                return name
+            if "could not fork" not in str(err):
                 raise
+            # GRAPH.COPY forks the server; with no memory headroom to fork (a small free host) the empty template's
+            # schema is built directly, which yields the identical graph
+            port = WritePort(self._db)
+            for label, prop in _TEMPLATE_INDEXES:
+                port.ensure_index(name, label, prop)
         return name
 
     def read_fact(self, principal: str, fact_id: str) -> FactRecord | None:
@@ -133,20 +142,23 @@ class MemoryStore:
         return int(str(rows[0][0]))
 
     def update_fact(
-        self, principal: str, fact_id: str, change: Callable[[str], str], default: str = "", max_retries: int = 200
+        self, principal: str, fact_id: str, change: Callable[[str], str], default: str = "", timeout_s: float = 20.0
     ) -> Updated:
+        deadline = time.monotonic() + timeout_s
         retries = 0
         while True:
             current = self.read_fact(principal, fact_id)
             value, ver = (current.value, current.ver) if current else (default, 0)
+            updated = change(value)
             try:
-                return Updated(change(value), self.write_fact(principal, fact_id, change(value), ver), retries)
+                return Updated(updated, self.write_fact(principal, fact_id, updated, ver), retries)
             except ConflictError:
                 retries += 1
-                if retries > max_retries:
+                if time.monotonic() > deadline:
                     raise
-                # a short yield, not a sleep schedule: contention here is bounded by the agents of one tenant
-                time.sleep(0)
+                # jittered exponential backoff: writers that keep colliding in lockstep are de-synchronised, so none
+                # starves; the deadline, not a retry count, bounds the wait
+                time.sleep(_JITTER.uniform(0, min(0.02, 0.0002 * 2 ** min(retries, 8))))
 
     def append_turn(self, principal: str, session: str, role: str, content: str, proof_id: str = "") -> int:
         rows = self._q(
