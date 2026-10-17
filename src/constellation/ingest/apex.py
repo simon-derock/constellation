@@ -6,6 +6,7 @@ import polars as pl
 import yaml
 
 from constellation.brain.access import SimEvent
+from constellation.brain.ownership import Claim, Departure, RegistryEntry
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,3 +75,22 @@ def load_apex(corpus: Path, config: Path) -> ApexCorpus:
         for row in frame.filter(pl.col("category") == "artifact").iter_rows(named=True)
     )
     return ApexCorpus(events=events, artifacts=artifacts, roles=roles_from_config(config))
+
+
+def ownership_sources(corpus: Path, registry: Path) -> tuple[list[RegistryEntry], list[Claim], list[Departure]]:
+    # observed sources only: claim and departure events, plus the registry snapshot they must be reconciled with
+    entries = [
+        RegistryEntry(r["domain"], r["primary_owner"], tuple(r.get("former_owners") or ()), int(r["last_updated_day"]))
+        for r in json.loads(registry.read_text())
+    ]
+    frame = pl.read_parquet(corpus, columns=["doc_id", "doc_type", "category", "day", "facts"])
+    events = frame.filter(pl.col("doc_type").is_in(["domain_ownership_claimed", "employee_departed"]))
+    claims: list[Claim] = []
+    departures: list[Departure] = []
+    for row in events.sort("day").iter_rows(named=True):
+        facts = json.loads(row["facts"])
+        if row["doc_type"] == "domain_ownership_claimed":
+            claims.append(Claim(facts["domain"], facts["new_owner"], row["day"], row["doc_id"]))
+        else:
+            departures.append(Departure(facts["name"], row["day"], row["doc_id"]))
+    return entries, claims, departures
