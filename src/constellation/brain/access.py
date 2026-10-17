@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 # Ported from OrgForge eval/eval_harness.py @ 1da5e4b (MIT): the access model that generated Apex.
@@ -70,6 +70,26 @@ class SimEvent:
     actors: tuple[str, ...]
     # (artifact key, artifact id) pairs in source order
     artifact_ids: tuple[tuple[str, str], ...]
+    event_id: str = ""
+    spawned_doc: bool = False
+
+
+# eval_harness.py:333 _safe_artifact_values — on-disk paths are not artifacts anyone reads
+_DISK_ONLY_KEYS = frozenset({"eml_path", "zoom_path", "transcript_path"})
+
+
+def event_artifacts(event: SimEvent) -> frozenset[str]:
+    return frozenset(aid for key, aid in event.artifact_ids if key not in _DISK_ONLY_KEYS and aid)
+
+
+def born_days(events: Iterable[SimEvent]) -> dict[str, int]:
+    # Apex has one clock, the simulation day; free-text timestamps drift from it in both directions,
+    # so an artifact exists from the day of the earliest event that produced it (ADR-0005)
+    born: dict[str, int] = {}
+    for event in events:
+        for aid in event_artifacts(event):
+            born[aid] = min(born.get(aid, event.day), event.day)
+    return born
 
 
 def subsystem_access(role: str) -> frozenset[str]:
@@ -99,3 +119,46 @@ def visible_artifacts(events: Iterable[SimEvent], actor: str, role: str, as_of_d
             if artifact_id and ARTIFACT_SUBSYSTEM.get(key, "default") in access:
                 seen.add(artifact_id)
     return frozenset(seen)
+
+
+def _jira_visible_cone(cone: frozenset[str], role: str) -> frozenset[str]:
+    # eval_harness.py _find_asymmetry_events: project-gated tickets drop out of the cone
+    return frozenset(
+        aid
+        for aid in cone
+        if not (
+            any(aid.startswith(p + "-") for p in JIRA_PROJECT_ACCESS) and not jira_project_visible(aid, role)
+        )
+    )
+
+
+def could_have_known(
+    events: Sequence[SimEvent],
+    born: Mapping[str, int],
+    actor: str,
+    role: str,
+    target: SimEvent,
+    as_of_day: int,
+    corpus_artifacts: frozenset[str],
+) -> bool:
+    # eval_harness.py _find_asymmetry_events + _build_perspective_question, on the simulation-day clock
+    cone = _jira_visible_cone(visible_artifacts(events, actor, role, as_of_day), role)
+    produced = event_artifacts(target)
+    missed = {aid for aid in produced - cone if born.get(aid, as_of_day) <= as_of_day}
+    if not missed:
+        return True
+    # knowledge also travels through an earlier event the actor took part in that shares an artifact
+    for event in events:
+        if event.day > target.day or actor not in event.actors:
+            continue
+        overlap = event_artifacts(event) & produced
+        if any(aid in cone and born.get(aid, as_of_day + 1) <= as_of_day for aid in overlap):
+            return True
+    # a design discussion whose page was published is discoverable by anyone who can open Confluence
+    page = dict(target.artifact_ids).get("confluence")
+    return bool(
+        target.type == "design_discussion"
+        and target.spawned_doc
+        and page in corpus_artifacts
+        and "confluence" in subsystem_access(role)
+    )
