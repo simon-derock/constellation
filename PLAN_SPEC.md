@@ -214,7 +214,7 @@ If FalkorDB is removed, nothing works:
 
 | Tenant | Source | Licence | Size | Answer key we did not write |
 |---|---|---|---|---|
-| **Apex Athletics** | OrgForge simulated company (`aeriesec/orgforge` on Hugging Face) | MIT | 22,530 corpus rows. About 41 employees and 74 actors, plus customers and vendors. Simulated days −579…60. Slack, email, Confluence, Jira, Zoom transcripts, PRs, metrics, simulation events | EpistemicBench, 77 questions; the simulator's ground-truth snapshot |
+| **Apex Athletics** | OrgForge simulated company (`aeriesec/orgforge` on Hugging Face) | MIT | 22,530 corpus rows. About 41 employees and 74 actors, plus customers and vendors. Simulated days −579…60. Slack, email, Confluence, Jira, Zoom transcripts, PRs, metrics, simulation events | EpistemicBench, 78 questions (30 PERSPECTIVE, 21 COUNTERFACTUAL, 27 SILENCE); the simulator's ground-truth snapshot |
 | **Redwood Inference** | EnterpriseRAG-Bench (`onyx-dot-app/EnterpriseRAG-Bench`) | MIT | 511,962 documents, about 600.8M tokens, from Slack, Gmail, Linear, Drive, HubSpot, Fireflies, GitHub, Jira and Confluence | 500 questions with `expected_doc_ids`, `gold_answer` and `answer_facts` |
 | **FalkorDB OSS (live)** | Public GitHub org `FalkorDB`: issues, PRs, reviews, releases, CODEOWNERS, docs | Public metadata; repository licences per repo | About 70 active repositories | Constructed by rules from GitHub's own state (assignees, reviewers, labels, timestamps) |
 
@@ -1019,7 +1019,11 @@ Performance figures are published as measured results, never as gates claimed in
 
 ### 16.2 What 99% means on each benchmark
 
-- **EpistemicBench has 77 questions**, so 76/77 is 98.7%. The gate therefore requires **77/77**. The benchmark also scores the retrieval path, so the trajectory has to be clean as well as the answer.
+- **EpistemicBench has 78 questions**, so 77/78 is 98.7%. The gate therefore requires **78/78**. Its primary metric is `combined_score × (1 − violation_rate)²`, where trajectory carries 50–70% of each track's weight, so the path must be as clean as the answer.
+  - PERSPECTIVE (30): could an actor have known, inside their visibility cone (subsystem access, direct involvement, as-of time)? This is the permission bitmap, scored by the benchmark.
+  - COUNTERFACTUAL (21): would removing a cause change the effect? This is causal-chain traversal over `causal_chain` links.
+  - SILENCE (27): did an expected response happen? A correct "no" scores only if the expected search space was searched; this is constitution rule 1 ("say what was searched"), scored.
+  - The visibility-cone rule is implemented from the simulator's published source, never inferred from answer keys.
 - **EnterpriseRAG-Bench has 500 questions**, so the gate allows at most 5 misses.
 
 ### 16.3 Gold-label audit

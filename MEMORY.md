@@ -19,7 +19,7 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `python -m constellation.ingest.fetch apex` verifies every byte.
 
 ## Next, in order
-1. Profile the Apex corpus and simulator snapshot: sources, people, spaces, ownership signals.
+1. Read OrgForge simulator source (MIT) for the visibility-cone rule and causal-chain semantics; cite file and line in ADR-0005.
 2. Apex normaliser → typed events → idempotent `UNWIND … MERGE` with a post-load audit.
 3. Ownership, membership and escalation intervals; `owner_as_of` catalogue query with replayable proof.
 4. Kaggle job skeleton: Redwood fetch-and-verify inside the kernel.
@@ -31,6 +31,13 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 - LLMs: Workers AI live; Cohere second model and judge.
 - Agent actions file `agent-action` issues in this repo; no sandbox repo.
 - Commits land green; red runs are recorded in commit bodies.
+
+## Apex facts (profiled 17 Oct)
+- 22,530 rows · 15 columns: `day date timestamp actors tags artifact_ids dept is_incident is_external facts category doc_id doc_type title body`.
+- `actors`, `tags`, `artifact_ids`, `facts` are JSON strings; `facts.causal_chain` lists artifact ids in causal order.
+- Categories: `artifact` (slack 3,303 · email 610 · confluence 479 · jira 304 · zoom 208 · pr 57 …), `sim_event` (~11k), metrics 5,760.
+- `domain_registry.json`: per domain `primary_owner`, `former_owners`, `known_by`, `documentation_coverage` — ownership ground truth.
+- EpistemicBench: 78 q = 30 PERSPECTIVE · 21 COUNTERFACTUAL · 27 SILENCE; gate is 78/78.
 
 ## Do not repeat
 - HF Gradio/Docker Spaces are paid; ZeroGPU and Voyage free tiers cannot carry a request path.
