@@ -13,11 +13,29 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      # actions pinned by commit SHA: a moved tag cannot change what runs here
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           version: "0.9.5"
       - run: uv sync --locked
       # pinned and byte-verified; the graph differential tests run on the real corpus
       - run: uv run python -m constellation.ingest.fetch apex
       - run: scripts/gate.sh
+  supply-chain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.9.5"
+      # every commit in history, not just the diff: a secret once pushed stays leaked
+      - run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.30.1 git /repo --no-banner --redact
+      - run: uv export --no-hashes --no-emit-project --format requirements-txt > requirements.txt
+      - run: uvx pip-audit --strict -r requirements.txt
