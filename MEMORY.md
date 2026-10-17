@@ -4,7 +4,7 @@ Present tense of the build. Design: [`PLAN_SPEC.md`](PLAN_SPEC.md) · contract: 
 Read this first, update it last. Under 80 lines, no secrets, no narrative.
 
 ## Now
-- **Wave:** W1 done — `python -m constellation.ingest.build_apex` builds brain:apex (verified pins, idempotent); W2 agent next
+- **Wave:** W2 in progress — MCP tools, toolbox, ReAct agent, official scorers; first full EpistemicBench run recorded in `results/raw/`
 - **Gate:** `scripts/gate.sh` green · 130+ tests · traceability 5/38 · commits only via `scripts/ship.sh`
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
 - **Last commit verified in CI:** see Actions; every push runs the full gate
@@ -23,9 +23,10 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `python -m constellation.ingest.fetch apex` verifies every byte.
 
 ## Next, in order
-1. W2: FastMCP tools from the catalogue (apex_cone, owner_as_of, counterfactual, absence, escalation_path).
-2. Agent FSM (PydanticAI, Workers AI model) with traces; vendor OrgForge scorers; first EpistemicBench run.
-3. Redwood: Kaggle job skeleton (fetch-and-verify, Qwen3-Embedding bulk embed).
+1. Read the full 78-question run; root-cause each miss (general fix + regression test, never a question patch); write `docs/audits/`.
+2. FastAPI app: `/ask` with proof + trace, `/proofs/{id}/replay`, MCP mounted; Dockerfile for Render.
+3. Live FalkorDB tenant (GitHub sync), memory graphs, web app, README results, video.
+4. Redwood: Kaggle job (fetch-and-verify, Qwen3-Embedding bulk embed) — cut first if behind (see INTERNAL.md).
 4. Kaggle job skeleton: Redwood fetch-and-verify inside the kernel.
 
 ## Decisions (one line each; `docs/adr/0001–0004` carry the why)
@@ -43,6 +44,13 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 - `domain_registry.json`: per domain `primary_owner`, `former_owners`, `known_by`, `documentation_coverage` — ownership ground truth.
 - EpistemicBench: 78 q = 30 PERSPECTIVE · 21 COUNTERFACTUAL · 27 SILENCE; gate is 78/78.
 
+## Agent design (measured 18 Oct, gpt-oss-20b on Workers AI)
+- Each track is two Actions deep; event types and mechanisms are schema enums; mechanism labels carry a one-line gloss.
+- The verifier fills mechanism, actors, evidence, reasoning from tool results: the model emits only the verdict.
+- Fixed prompt+spec overhead fell 30-45%; counterfactual 47k tokens/never solved → ~4.5k tokens, 1.0 on its probe.
+- A named mechanism decides cause/effect types (one type pair each); type guesses beside it only hid links.
+- Tools validate event ids and return a correctable error; a silent "unlinked" let the model invent ids.
+
 ## Do not repeat
 - HF Gradio/Docker Spaces are paid; ZeroGPU and Voyage free tiers cannot carry a request path.
 - FalkorDB Cloud free: 100 MB, deleted after 7 idle days.
@@ -52,6 +60,8 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 - Apex timestamps drift from the simulation day both ways; the day is the only clock (ADR-0005).
 - Causal rules take the first match: run events chronologically (19→21/21 links).
 - `_vendor/` is generated and sha256-pinned; regenerate with `tools/vendor_orgforge.py`, never edit.
+- Workers AI rejects null fields echoed back from replies (HTTP 400 on turn two): echo only role/content/tool_calls.
+- FalkorDB client inlines params as text: strip C0 controls (NUL in 2 Apex summaries broke the load).
 - `falkordb` is untyped: keep it behind `ReadPort`; mypy override is scoped to that module.
 
 ## Commands
