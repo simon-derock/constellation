@@ -210,12 +210,13 @@ def _verify(run: AgentRun, q: Question) -> AgentRun:
         exists, searched = bool(result["exists"]), [str(s) for s in result["searched"]]
         if run.answer.get("exists") is not exists:
             run.strategy_changes.append("verify: exists corrected to the absence tool's decision")
+        response = args["response_type"]
         found = (
             f"it exists as {result.get('response_event')}"
             if exists
-            else "it was not found: no record, it does not exist"
+            else f"no {response} was found, so it does not exist"
         )
-        grounded = f"Searched {len(searched)} artifacts ({', '.join(searched)}) for a {args['response_type']}; {found}."
+        grounded = f"Searched {len(searched)} artifacts ({', '.join(searched)}) for a {response}; {found}."
         run.answer.update(exists=exists, answer="yes" if exists else "no")
         run.answer["reasoning"] = f"{grounded} {run.answer.get('reasoning', '')}".strip()
     if q.qtype == "PERSPECTIVE" and (hit := _last(run, "could_have_known")):
