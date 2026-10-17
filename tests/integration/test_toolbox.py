@@ -157,3 +157,41 @@ def test_causal_links_carry_the_causes_summary_for_choosing_between_them(port: R
     assert links
     assert all(isinstance(link["cause_summary"], str) for link in links)
     assert any(link["cause_summary"] for link in links)
+
+
+TRUE_CAUSE = "EVT-4-knowledge_gap_detected-586"
+TRUE_EFFECT = "EVT-8-incident_opened-1219"
+
+
+def test_candidate_links_are_compact_ranked_and_one_recorded_step(port: ReadPort) -> None:
+    tools = Toolbox(port, GRAPH)
+    rows = tools.candidate_links(4, "knowledge_gap_detected", ["Jax"], target_type="incident_opened")
+    assert 1 < len(rows) <= 16
+    assert all(set(r) == {"cause", "mechanism", "effect", "effect_type", "why"} for r in rows)
+    assert all(len(str(r["why"])) <= 110 for r in rows)
+    assert [c.tool for c in tools.calls] == ["candidate_links"]
+    assert len(tools.calls[0].proofs) == 1
+
+
+def test_a_mechanism_filter_narrows_to_the_links_the_wording_implies(port: ReadPort) -> None:
+    rows = Toolbox(port, GRAPH).candidate_links(
+        4, "knowledge_gap_detected", ["Jax"], target_type="incident_opened", mechanism="doc_gap_detected"
+    )
+    assert rows
+    assert {r["mechanism"] for r in rows} == {"doc_gap_detected"}
+    assert TRUE_CAUSE in {r["cause"] for r in rows}
+
+
+def test_counterfactual_records_the_evidence_reads_in_causal_order(port: ReadPort) -> None:
+    tools = Toolbox(port, GRAPH)
+    tools.counterfactual(TRUE_CAUSE, TRUE_EFFECT, "doc_gap_detected")
+    assert [c.tool for c in tools.calls] == ["event_artifacts", "event_artifacts", "counterfactual"]
+    assert tools.calls[0].args == {"event": TRUE_CAUSE}
+    assert tools.calls[1].args == {"event": TRUE_EFFECT}
+
+
+def test_counterfactual_does_not_reread_evidence_the_caller_already_read(port: ReadPort) -> None:
+    tools = Toolbox(port, GRAPH)
+    tools.event_artifacts(TRUE_CAUSE)
+    tools.counterfactual(TRUE_CAUSE, TRUE_EFFECT, "doc_gap_detected")
+    assert [c.tool for c in tools.calls] == ["event_artifacts", "event_artifacts", "counterfactual"]

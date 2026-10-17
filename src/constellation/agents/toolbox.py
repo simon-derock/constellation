@@ -69,6 +69,28 @@ class Toolbox:
         # the cone the tools enforce, exposed so scoring judges against the same boundary
         return self._cone()[0]
 
+    def candidate_links(
+        self, day: int, event_type: str = "", actors: Sequence[str] = (), target_type: str = "", mechanism: str = ""
+    ) -> list[dict[str, Value]]:
+        # find + causal_links in one read: the model states what it is looking for, the graph returns the options
+        t0 = time.perf_counter()
+        args = {
+            "day": day,
+            "event_type": event_type,
+            "people": list(actors),
+            "target_type": target_type,
+            "mechanism": mechanism,
+        }
+        result = self._run("candidate_links", args)
+        rows = [dict(zip(result.columns, row, strict=True)) for row in result.rows]
+        self._record("candidate_links", args, [], [], [result.sha256], t0, empty=not rows)
+        return rows
+
+    def _read_once(self, event: str) -> None:
+        # evidence for an event is read once per question; a repeat would only inflate the trajectory
+        if not any(c.tool == "event_artifacts" and c.args.get("event") == event for c in self.calls):
+            self.event_artifacts(event)
+
     def event_types(self) -> list[str]:
         # vocabulary, not evidence: it reveals no event or artifact, so it is not a trajectory step
         return [str(r[0]) for r in self._run("event_types", {}).rows]
@@ -148,6 +170,9 @@ class Toolbox:
         return rows
 
     def counterfactual(self, cause: str, effect: str, mechanism: str) -> dict[str, Value]:
+        # the verdict rests on both events' artifacts, so they are read first and in causal order
+        self._read_once(cause)
+        self._read_once(effect)
         t0 = time.perf_counter()
         args = {"cause": cause, "effect": effect, "link_type": mechanism}
         result = self._run("counterfactual", args)
