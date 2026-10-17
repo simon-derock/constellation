@@ -1,0 +1,41 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# node / web / video
+node_modules/
+web/dist/
+video/out/
+.vercel/
+
+# data and derived artifacts (pinned + manifested, never committed)
+data/
+artifacts/
+*.parquet
+*.rdb
+*.npy
+*.wav
+*.opus
+
+# run outputs (curated audit summaries live in docs/audits/)
+results/raw/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# editors / os
+.idea/
+.vscode/
+.DS_Store
