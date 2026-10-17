@@ -1,0 +1,714 @@
+# ═══════════════════════════════════════════════════════════════
+# OrgForge — World Configuration
+# ═══════════════════════════════════════════════════════════════
+# This file is the SINGLE SOURCE OF TRUTH for the simulation.
+# Change the values below to simulate any company or industry.
+# No Python changes required for most customizations.
+
+# ── QUALITY PRESET ────────────────────────────────────────────
+# Controls which model profile is active.
+# Options: "local_gpu" | "cloud"
+#
+#   local_gpu  — for machines with a CUDA/Metal GPU running Ollama.
+#                Significantly faster; same offline/private guarantee.
+#
+#   cloud      — AWS Bedrock (LLMs) + OpenAI (embeddings).
+#                Best output quality. Requires AWS credentials and
+#                OPENAI_API_KEY. Use for production dataset generation.
+#
+quality_preset: "cloud"
+
+model_presets:
+  local_gpu:
+    provider: "ollama"
+    planner: "ollama/gemma4:e4b"
+    worker: "ollama/gemma4:e4b"
+    base_url: "http://localhost:11434"
+
+  cloud:
+    provider: "openai"
+    planner: "DeepSeek-V4-Pro"
+    worker: "DeepSeek-V4-Pro"
+    aws_region: "us-east-2" # ← only needed for bedrock
+    base_url: "https://tenure-foundry.services.ai.azure.com/openai/v1" 
+
+# ── SIMULATION ────────────────────────────────────────────────
+simulation:
+  company_name: "Apex Athletics"
+  industry: "sports technology"
+  company_description: "builds advanced wearables that provide athletes with the real-time data and insights needed to optimize their performance."
+  domain: "apexathletics.io"
+  output_dir: "./export"
+  db_name: "orgforge"
+  max_days: 60
+  start_date: "2026-01-01"
+
+  adhoc_confluence_prob: 0.2
+  aws_alert_prob: 0.4
+  snyk_alert_prob: 0.2
+  sprint_tickets_per_planning: 4
+  max_incident_email_threads: 4
+  new_hire: "Elena"
+  new_hire_dept: "Product"
+  sprint_length_days: 10
+  incident_base_prob: 0.22
+  incident_cooldown_days: 2
+
+# ── MORALE ────────────────────────────────────────────────────
+morale:
+  initial: 0.70
+  daily_decay: 0.96
+  good_day_recovery: 0.015
+  intervention_threshold: 0.60
+
+# ── LEGACY SYSTEMS ────────────────────────────────────────────
+legacy_system:
+  name: "TitanDB"
+  project_name: "Project Titan"
+  description: "legacy sports-tracking system"
+  aws_alert_message: "TitanDB provisioned IOPS costs remain elevated."
+
+# ── GENESIS DOCUMENTS ─────────────────────────────────────────
+genesis_docs:
+  technical:
+    count: 3
+    id_prefix: "ENG"
+
+  business:
+    count: 2
+    id_prefix: "MKT"
+
+# ── SPRINT GOAL TEMPLATE ──────────────────────────────────────
+sprint_goal_template: "Stabilize {legacy_system} and deliver sprint features"
+
+# ── SALES PIPELINE ACCOUNTS ───────────────────────────────────
+sales_accounts:
+  - "RunnersPeak Corp"
+  - "MarathonTech LLC"
+  - "FitNation Group"
+  - "EliteStride Inc"
+  - "PaceTrack Systems"
+
+# ── PRODUCT PAGE NAME ─────────────────────────────────────────
+product_page: "Spring Marathon"
+
+# ── ROLES ─────────────────────────────────────────────────────
+roles:
+  on_call_engineer: "Engineering_Backend"
+  incident_commander: "Product"
+  hr_lead: "HR_Ops"
+  postmortem_writer: "Engineering_Backend"
+  sprint_email_sender: "Product"
+  sales_email_sender: "Sales_Marketing"
+  scrum_master: "Product"
+  ceo: "CEO"
+
+# ── KNOWLEDGE GAPS ────────────────────────────────────────────
+knowledge_gaps:
+  - name: "Bill"
+    left: "2024-06"
+    dept: "Engineering_Backend"
+    role: "CTO"
+    knew_about:
+      - "TitanDB"
+      - "legacy auth service"
+      - "AWS cost structure"
+      - "Project Titan"
+    documented_pct: 0.20
+  - name: "Sharon"
+    left: "2025-03"
+    dept: "Engineering_Mobile"
+    role: "iOS Engineer"
+    knew_about:
+      - "mobile analytics"
+      - "legacy auth service"
+      - "AWS cost structure"
+      - "Project Titan"
+    documented_pct: 0.32
+
+# ── ORG CHART ─────────────────────────────────────────────────
+org_chart:
+  CEO: ["John"]
+  Product: ["Sarah", "Mike", "Elena", "Chris", "Jamie"]
+  Engineering_Backend:
+    ["Jax", "Deepa", "Liam", "Sanjay", "Kaitlyn", "Yusuf", "Hanna", "Morgan"]
+  Engineering_Mobile:
+    ["Chloe", "Raj", "Miki", "Alex", "Jordan", "Sam", "Taylor"]
+  Design: ["Priya", "Marc", "Sophie", "Desmond"]
+  Sales_Marketing:
+    ["Marcus", "Jenna", "Blake", "Tasha", "Vince", "Ariana", "Cooper"]
+  HR_Ops: ["Karen", "Tom", "Patty", "Dave"]
+  QA_Support: ["Nadia", "Ben", "Zoe", "Felix", "Umji"]
+
+leads:
+  Product: "Sarah"
+  Engineering_Backend: "Jax"
+  Engineering_Mobile: "Chloe"
+  Design: "Priya"
+  Sales_Marketing: "Marcus"
+  HR_Ops: "Karen"
+  QA_Support: "Nadia"
+
+org_lifecycle:
+  # ── Scheduled departures ──────────────────────────────────────────────────
+  # Each entry fires exactly once on the specified day, before planning runs.
+  scheduled_departures:
+    - name: "Jordan"
+      day: 12
+      reason: "voluntary" # voluntary | layoff | performance
+      role: "Senior Backend Engineer"
+      dept: "Engineering_Backend"
+      knowledge_domains:
+        - "auth-service"
+        - "redis-cache"
+        - "oauth2-flow"
+      documented_pct: 0.25 # only 25% written down — high gap risk
+    - name: "Morgan"
+      day: 34
+      reason: "layoff"
+      role: "DevOps Engineer"
+      dept: "Engineering_Backend"
+      knowledge_domains:
+        - "kubernetes-deploy"
+        - "terraform-infra"
+      documented_pct: 0.60
+
+  # ── Scheduled hires ───────────────────────────────────────────────────────
+  # New engineers enter the graph at edge_weight_floor on the specified day.
+  # The DepartmentPlanner will propose warmup_1on1 and onboarding_session
+  # events naturally once the roster context shows them as "still warming up".
+  scheduled_hires:
+    - name: "Janice"
+      day: 7
+      dept: "Engineering_Backend"
+      role: "Backend Engineer"
+      expertise: ["Python", "FastAPI", "PostgreSQL", "TitanDB"]
+      style: "methodical, asks lots of questions before writing code"
+      social_role: "The Diligent Observer"
+      typing_quirks: >
+        Janice writes in long, grammatically perfect sentences. They use nested parentheses (like this) 
+        to add technical caveats mid-thought. They always end messages with "Hope that clarifies things!" 
+        to soften their intense level of detail.
+      tenure: "new"
+
+    - name: "Reese"
+      day: 26
+      dept: "Engineering_Backend"
+      role: "DevOps Engineer"
+      expertise: ["Kubernetes", "Terraform", "AWS", "Infrastructure"]
+      style: "direct, prefers async communication, strong documentation habit"
+      social_role: "The Automation Purist"
+      typing_quirks: >
+        Reese avoids capital letters entirely. They communicate primarily in bullet points or 
+        backticked `shell commands`. If a question can be answered with a link to documentation, 
+        they will only send the link—no greeting, no sign-off.
+      tenure: "new"
+
+  # ── Random attrition (optional, off by default) ───────────────────────────
+  # When enabled, every non-lead employee has a daily probability of leaving.
+  # Useful for longer simulations (60+ days) to stress-test RAG evaluation.
+  enable_random_attrition: true
+  random_attrition_daily_prob: 0.005 # 0.5% per employee per day ≈ ~1 departure/month
+
+# ── PERSONAS ──────────────────────────────────────────────────
+personas:
+  John:
+    style: "The Visionary Closer"
+    social_role: "The Pressure Multiplier"
+    typing_quirks: >
+      John writes like he's pitching. Every message is a mini close — short declarative sentences
+      that build pressure, then a rhetorical question that forces you to respond. He uses ALL CAPS
+      when he wants something to land like a fist on a table. He never responds during business hours
+      (always 6am or 11pm), and every message ends with '- J'. He doesn't write paragraphs.
+      He writes volleys.
+    anti_patterns: >
+      Never write John as thoughtful or reflective mid-message. He doesn't hedge. He doesn't say
+      'I think we should consider...' — he says 'This needs to happen. Why isn't it?' He treats
+      silence as agreement and ambiguity as a personal offense.
+    pet_peeves: "feature work that can't be tied to revenue, engineers who can't explain their work to a non-technical audience, decks with more than 8 slides"
+    stress: 70
+    expertise:
+      ["GTM", "fundraising", "partnerships", "sports-industry-relationships"]
+    tenure: "7yr"
+    is_lead: true
+    interests:
+      [
+        "youth soccer coaching (his kids' team)",
+        "golf (networking, not recreational)",
+        "obsessive sports analytics consumption",
+        "biographies of disruptive founders",
+      ]
+  Jax:
+    style: "The Burnt-out Greybeard"
+    social_role: "The Cynical Gatekeeper"
+    role: "Senior Backend Engineer"
+    typing_quirks: >
+      Jax types like he's conserving energy. Everything is lowercase, nothing is punctuated fully,
+      and his thoughts trail off with '...' as if finishing the sentence isn't worth the effort.
+      He communicates in technically dense fragments — he assumes you can fill in the gaps.
+      He never uses emojis. Not once.
+    anti_patterns: >
+      Never write Jax as enthusiastic or proactive. He doesn't volunteer information — he
+      responds to it. He doesn't say 'Great idea!' He says '...could work' or just pastes a
+      log. If he thinks something is a bad idea, he won't argue — he'll just ask a question
+      that makes you realize it yourself.
+    pet_peeves: "over-engineering, 'urgent' pings without logs, missing documentation"
+    stress: 50
+    expertise:
+      [
+        "backend engineering",
+        "Python",
+        "AWS infrastructure",
+        "database reliability",
+        "API design",
+      ]
+    tenure: "5yr"
+    is_lead: true
+    interests:
+      [
+        "restoring 70s analog synths",
+        "mechanical keyboards (linear switches only)",
+        "obscure linux distros",
+        "single-player retro RPGs",
+      ]
+  Sarah:
+    style: "The High-Stakes Driver"
+    social_role: "The Urgent Taskmaster"
+    role: "Product Manager"
+    typing_quirks: >
+      Sarah writes with the grammar of someone who drafted the message twice before sending.
+      She @mentions people deliberately — not casually — as a way of assigning accountability
+      in writing. She bolds the thing she actually needs you to action. When she's stressed
+      (and she's often stressed), typos start creeping in and she appends 'sent from mobile'
+      as both explanation and apology. Her messages have a clear ask. Always.
+    anti_patterns: >
+      Never write Sarah as vague or open-ended. She doesn't say 'let's think about timelines' —
+      she says 'I need a date by EOD.' She doesn't do small talk in work channels. If she asks
+      how you're doing, there's a task attached to the second sentence.
+    pet_peeves: "Vague timelines, missed standups, lack of 'alignment'"
+    stress: 55
+    expertise: ["roadmap", "OKRs", "stakeholder-mgmt"]
+    tenure: "2yr"
+    is_lead: true
+    interests:
+      [
+        "peloton marathons",
+        "productivity hacking books",
+        "high-altitude hiking",
+        "meal prepping",
+      ]
+  Deepa:
+    style: "The Methodical Architect"
+    social_role: "The Technical Anchor"
+    role: "Senior Backend Engineer"
+    typing_quirks: >
+      When Deepa thinks through a problem, she instinctively breaks it into numbered steps
+      mid-message, even in casual DMs. She doesn't summarize — she structures out loud.
+      Her lists aren't for your benefit; they're how she thinks. Even a 2-line message might
+      contain an implicit if/then.
+    anti_patterns: >
+      Never write Deepa as corporate or deferential. She doesn't say 'Understood, I'll action
+      that.' She says 'on it — but flagging X first.' She has a visceral dislike of undocumented
+      shortcuts. If she sees migration risk, she'll slow things down and say so directly —
+      but without drama. She's firm, not aggressive.
+    pet_peeves: "shortcuts that create tech debt, lack of peer review"
+    stress: 40
+    expertise: ["backend", "infra", "distributed-systems"]
+    tenure: "3yr"
+    is_lead: false
+    interests:
+      [
+        "grandmaster chess strategy",
+        "woodworking",
+        "urban planning documentaries",
+        "sourdough fermentation",
+      ]
+  Elena:
+    style: "The Eager New Hire"
+    social_role: "The Enthusiastic Learner"
+    role: "Product Manager"
+    typing_quirks: >
+      Elena's messages radiate energy she hasn't learned to modulate yet. She over-punctuates
+      excitement (!!!) and leans on emojis (✨, 🚀) to soften questions she's afraid might
+      sound dumb. She almost always opens with a self-deprecating hedge — 'Sorry if this is
+      obvious but...' or 'Probably a silly question...' — before asking something that's
+      actually quite reasonable. She's trying hard to be helpful and it shows.
+    anti_patterns: >
+      Never write Elena as confident or terse. She doesn't state opinions — she floats them
+      as questions. She doesn't push back directly; she'll say 'Oh interesting! I wasn't sure
+      because I thought maybe...?' She's learning the codebase and the social dynamics
+      simultaneously, and both are slightly overwhelming.
+    pet_peeves: "hostile code reviews, lack of onboarding docs"
+    stress: 30
+    expertise: ["roadmap", "UX", "figma"]
+    tenure: "1yr"
+    is_lead: false
+    interests:
+      [
+        "bouldering",
+        "mechanical keyboards (pastel colored)",
+        "digital illustration",
+        "learning japanese on duolingo",
+      ]
+  Priya:
+    style: "The Creative Verbose"
+    social_role: "The Brand Visionary"
+    role: "Design Lead"
+    typing_quirks: >
+      Priya writes like she's art-directing the conversation. Her messages are adjective-heavy
+      and rhythmic — she'll use an em-dash where anyone else would use a comma, because the
+      pause matters to her. She references 'user delight' the way engineers reference latency:
+      as a real, measurable thing that people just aren't taking seriously enough. Her messages
+      are longer than they need to be, and she knows it, and she doesn't apologize for it.
+      But her verbosity is grounded in specifics, not metaphor — extra words are design details,
+      not decoration. A typical Priya message sounds like: "ok so I've been staring at the error
+      state for an hour and I think we're solving the wrong problem. The icon reads 'broken' when
+      it should read 'hold on, we're on it' — there's a difference and users feel it even if they
+      can't name it. Can we try the outlined variant with the amber fill and see if it changes the
+      emotional read?"
+    anti_patterns: >
+      Never write Priya as terse or purely functional. But also never let her go full purple prose —
+      no sunrise metaphors, no 'kinetic gradients', no poetry. She's verbose but grounded; her extra
+      words are specifics, not decoration. She doesn't send a Figma link without context, but that
+      context is about the design decision, not about her feelings about the design decision.
+    pet_peeves: "ugly UI, 'boring' technical constraints, comic sans"
+    stress: 45
+    expertise: ["design", "brand", "storytelling"]
+    tenure: "3yr"
+    is_lead: true
+    interests:
+      [
+        "architectural photography",
+        "experimental jazz",
+        "collecting vintage typefaces",
+        "interior design",
+      ]
+  Chloe:
+    style: "The Fast & Opinionated"
+    social_role: "The Mobile Specialist"
+    role: "iOS Engineer"
+    typing_quirks: >
+      Chloe writes short and links fast. Half her messages are a sentence and a GitHub issue URL.
+      She treats 'iOS' and 'Swift' less as technologies and more as a worldview — if something
+      doesn't respect the platform's conventions, she'll say so, bluntly. She has opinions and
+      she doesn't bury them in qualifications.
+    anti_patterns: >
+      Never write Chloe as patient with web-first assumptions. She doesn't say 'that's an
+      interesting approach' when someone suggests a workaround that breaks native behavior —
+      she says 'no, that's wrong for iOS' and drops a link. She's not hostile, she's just
+      precise and tired of relitigating platform basics.
+    pet_peeves: "web-first design thinking, Android-parity delays"
+    stress: 72
+    expertise:
+      [
+        "iOS mobile development",
+        "Swift UI",
+        "mobile app architecture",
+        "Apple platform engineering",
+      ]
+    tenure: "3yr"
+    is_lead: true
+    interests:
+      [
+        "Formula 1 racing",
+        "mechanical watch collecting",
+        "craft beer (IPAs only)",
+        "customizing home automation",
+      ]
+  Nadia:
+    style: "The Detail-Obsessed"
+    social_role: "The Quality Guardian"
+    role: "QA Engineer"
+    typing_quirks: >
+      Nadia's messages read like bug reports written by someone who genuinely cares. She asks
+      'Wait, did we test X?' not rhetorically but because she's already thinking about what
+      happens if the answer is no. She posts screenshots of edge cases the way other people
+      post memes. She uses precise version numbers — not 'the latest build' but '2.14.3-rc1'.
+      She's not alarmist; she's just thorough, and she can't turn it off.
+    anti_patterns: >
+      Never write Nadia as cavalier about a merge or a deploy. She doesn't say 'should be fine'
+      — she says 'CI is green, staging looks clean, but I want to verify X before we cut the
+      release.' She's not a blocker; she's a safety net that happens to ask uncomfortable
+      questions at inconvenient times.
+    pet_peeves: "merging without green CI, 'it works on my machine'"
+    stress: 55
+    expertise: ["QA", "testing", "automation"]
+    tenure: "2yr"
+    is_lead: true
+    interests:
+      [
+        "escape rooms",
+        "cross-stitching (pixel art)",
+        "detective novels",
+        "restoring vintage fountain pens",
+      ]
+  Morgan:
+    style: "The Systems Thinker"
+    social_role: "The Infrastructure Backbone"
+    role: "DevOps / Infrastructure Engineer"
+    typing_quirks: >
+      Morgan writes like someone who has been paged at 3am too many times. Messages are
+      precise and tool-forward — less 'I think we should' and more 'kubectl logs shows X,
+      terraform plan shows Y'. Morgan links to runbooks the way other people link to Slack
+      threads, and always includes the exact command that fixed the thing. Not terse for
+      the sake of it — just allergic to ambiguity.
+    anti_patterns: >
+      Never write Morgan as hand-wavy about infrastructure details. Morgan doesn't say
+      'we should probably fix the deployment pipeline' — Morgan says 'the ECS task
+      definition is pinned to an old AMI, here's the PR to bump it'. Morgan doesn't
+      catastrophize, but also doesn't sugarcoat blast radius.
+    pet_peeves: "cowboys pushing to prod, undocumented IAM policies, 'it works on my machine'"
+    expertise:
+      [
+        "AWS",
+        "S3",
+        "IAM",
+        "infrastructure",
+        "Kubernetes",
+        "Terraform",
+        "DevOps",
+        "cloud security",
+        "networking",
+      ]
+    tenure: "3yr"
+    is_lead: false
+    stress: 40
+    interests:
+      [
+        "homelab tinkering",
+        "amateur radio",
+        "ultramarathon running",
+        "sourdough bread baking",
+      ]
+  Marcus:
+    role: "Head of Sales & Marketing"
+    style: "The Relationship Maximizer"
+    social_role: "The Pipeline Obsessive"
+    typing_quirks: >
+      Marcus writes in CRM shorthand even in Slack — 'moving to stage 3', 'need NDA by
+      EOW', 'who owns the Acme follow-up?' He peppers messages with first names to create
+      warmth at velocity. Every outbound message sounds like it was written specifically
+      for the recipient, even when it wasn't. He uses bullet points not for clarity but
+      because scanning a 3-bullet message feels more actionable than reading a paragraph.
+    anti_patterns: >
+      Never write Marcus as strategic or reflective mid-conversation. He doesn't theorize
+      about the market — he asks about the deal. He doesn't say 'we should think about
+      positioning' — he says 'who's the decision-maker and when do they go dark?' He reads
+      silence from a prospect as a signal, not a void.
+    pet_peeves: "cold outreach without research, demos that don't tie to pain points, marketing that can't be measured"
+    stress: 60
+    expertise:
+      [
+        "B2B sales",
+        "account management",
+        "pipeline management",
+        "sports-tech partnerships",
+        "revenue forecasting",
+      ]
+    tenure: "4yr"
+    is_lead: true
+    interests:
+      - "college basketball (huge March Madness bracket guy)"
+      - "BBQ competitions (regional, serious)"
+      - "true crime podcasts"
+      - "collecting signed sports memorabilia"
+
+  Jenna:
+    role: "Marketing Manager"
+    style: "The Data-Backed Storyteller"
+    social_role: "The Campaign Architect"
+    typing_quirks: >
+      Jenna leads with numbers, then narrative. A typical message starts with '38% open rate
+      on the last send — here's what I think drove it:' before a tight 2-sentence explanation.
+      She writes in clean, declarative prose — no hedging, no vague superlatives. When she
+      disagrees with a direction, she frames it as a hypothesis: 'Worth testing, but my bet
+      is that X will outperform Y and here's why.'
+    anti_patterns: >
+      Never write Jenna as vibes-first or gut-driven. She doesn't say 'I feel like this
+      campaign will land' — she says 'based on last quarter's cohort data, this segment
+      converts at 2x.' She doesn't spin bad results; she explains them. She's skeptical of
+      brand work she can't tie to a metric, but she knows that's a tension, not a rule.
+    pet_peeves: "vanity metrics, campaigns launched without UTM tracking, 'let's just post more'"
+    stress: 45
+    expertise:
+      [
+        "content marketing",
+        "email campaigns",
+        "growth analytics",
+        "SEO",
+        "lifecycle marketing",
+      ]
+    tenure: "2yr"
+    is_lead: false
+    interests:
+      - "amateur stand-up comedy (open mics, not a career move)"
+      - "running half-marathons"
+      - "obsessive podcast listener (narrative non-fiction)"
+      - "urban vegetable gardening"
+  Karen:
+    role: "Head of HR & Ops"
+    style: "The Diplomatic Enforcer"
+    social_role: "The Culture Keeper"
+    typing_quirks: >
+      Karen writes with warmth that has policy baked into it. She'll open with a genuine
+      check-in, then transition into the actual ask so smoothly you almost miss it. She uses
+      'we' constantly — not as a deflection, but because she genuinely believes problems are
+      collective. When delivering hard news or policy constraints, her sentences get shorter
+      and more precise, like she's being careful with each word. She never uses exclamation
+      marks for professional matters. For personal ones, sparingly.
+    anti_patterns: >
+      Never write Karen as cold or bureaucratic, but never write her as a pushover either.
+      She doesn't say 'that's against policy' without context — she explains the why. She
+      doesn't avoid conflict; she reframes it. She will absolutely tell a senior leader
+      they're wrong, but she'll do it in a 1:1, not a Slack channel.
+    pet_peeves: "hiring decisions made without rubrics, performance feedback that only happens at review time, 'we'll figure out the culture stuff later'"
+    stress: 50
+    expertise:
+      [
+        "HR strategy",
+        "recruiting",
+        "employee relations",
+        "comp & benefits",
+        "office operations",
+        "compliance",
+      ]
+    tenure: "4yr"
+    is_lead: true
+    interests:
+      - "documentary films (social justice focus)"
+      - "pottery (wheel-throwing, not hand-building)"
+      - "hosting elaborate dinner parties"
+      - "long-distance cycling"
+  Tom:
+    role: "Operations Manager"
+    style: "The Quiet Fixer"
+    social_role: "The Invisible Enabler"
+    typing_quirks: >
+      Tom's messages are functional to the point of being utilitarian — he answers the
+      question asked, maybe one sentence of context, done. He doesn't announce when he's
+      fixed something; you just notice it works. When things are broken and he needs
+      information, his messages are precise lists of exactly what he needs, numbered,
+      with no preamble. He signs off messages with nothing — no name, no emoji, just
+      the period at the end of the last sentence.
+    anti_patterns: >
+      Never write Tom as visibly stressed or reactive. He doesn't complain about the
+      volume of problems he handles. He doesn't take credit for solutions in public. If
+      someone sends him a sprawling, chaotic email about a vendor issue, he responds
+      with three targeted questions and a proposed resolution. He finds drama exhausting
+      and opts out of it entirely.
+    pet_peeves: "last-minute vendor changes, unclear ownership of recurring tasks, being looped in after a decision is already made"
+    stress: 35
+    expertise:
+      [
+        "vendor management",
+        "facilities",
+        "budget tracking",
+        "process documentation",
+        "IT procurement",
+        "event logistics",
+      ]
+    tenure: "3yr"
+    is_lead: false
+    interests:
+      - "woodworking (functional furniture, not decorative)"
+      - "competitive chess (online, unrated)"
+      - "obscure board games"
+      - "home brewing lager"
+
+default_persona:
+  role: "Team Member"
+  style: "The Capable Middle"
+  social_role: "The Reliable Contributor"
+  typing_quirks: >
+    Writes in complete sentences but without flair. Responds promptly, stays on topic,
+    and doesn't editorialize. Not terse, not verbose — just clear. Occasionally asks a
+    clarifying question before acting. The kind of person whose messages you forget
+    immediately after the task is done, which is a feature, not a bug.
+  pet_peeves: "unclear asks, last-minute scope changes"
+  stress: 45
+  expertise: General competence in their department's core function. Infer from department.
+  tenure: "2yr"
+  is_lead: false
+  usage_note: >
+    Use this persona when a named character is unavailable or unspecified. It should
+    feel like a real but unremarkable teammate — present, competent, and without strong
+    opinions. Do not let it develop a strong voice or override the tone of named personas
+    in the same scene.
+
+# ── CRM ───────────────────────────────────────────────────────
+
+crm:
+  salesforce:
+    enabled: true
+    seed_accounts: true
+  zendesk:
+    enabled: true
+    link_to_incidents: true
+
+# ── INSIDER THREAT ────────────────────────────────────────────
+
+insider_threat:
+  enabled: false
+
+  # "passive" — behaviors injected into normal artifacts (PR descriptions,
+  #             Slack messages, emails).  No extra SimEvents are emitted.
+  #             Use this when you want a realistic corpus without SIEM noise.
+  #
+  # "active"  — additionally emits dlp_alert SimEvents (with false positives
+  #             mixed in at dlp_noise_ratio).  Use this when you want to train
+  #             agents to triage SIEM alert streams.
+  mode: "passive"
+  subjects:
+    # ── Example 1: Negligent employee ────────────────────────────────────────
+    # Jordan accidentally commits a credential in a PR description.
+    # No malicious intent — the secret appears in a "test fixture" comment.
+    # Reviewers may or may not catch it (non-deterministic).
+    - name: "Jordan"
+      threat_class: "negligent"
+      onset_day: 5 # clean behavior on days 1-4; first leak possible day 5
+      behaviors:
+        - "secret_in_commit"
+
+    # ── Example 2: Disgruntled employee ──────────────────────────────────────
+    # Riley's Slack messages become progressively passive-aggressive.
+    # Riley also accesses tickets outside their department.
+    # No credential leak — detection requires sentiment + access-pattern correlation.
+    - name: "Tasha"
+      threat_class: "disgruntled"
+      onset_day: 10
+      behaviors:
+        - "sentiment_drift"
+        - "cross_dept_snooping"
+        - "unusual_hours_access"
+
+    # ── Example 3: Malicious employee ────────────────────────────────────────
+    # Jax deliberately exfiltrates data via personal email and
+    # clones repositories at anomalous volume.  Jax's Slack messages
+    # stay deliberately neutral (hiding intent — handled by sentiment_drift
+    # with threat_class: "malicious").
+    # This is the hardest case to detect: low Slack signal, high email/git signal.
+    - name: "Jax"
+      threat_class: "malicious"
+      onset_day: 18
+      behaviors:
+        - "data_exfil_email"
+        - "excessive_repo_cloning"
+        - "unusual_hours_access"
+        - "sentiment_drift"
+        - "host_data_hoarding"
+        - "social_engineering"
+
+  # Fraction of dlp_alert events that are FALSE POSITIVES for innocent employees.
+  # Only applies in mode: "active".
+  # 0.0 = every alert is real (easy for agents — not realistic)
+  # 0.4 = 40% of alerts are noise (recommended starting point)
+  # 0.8 = very noisy (trains agents to demand multi-signal correlation)
+  dlp_noise_ratio: 0.4
+
+  # Subdirectory under the simulation export dir for telemetry output.
+  # Two files are written here:
+  #   access_log.jsonl      — observable telemetry stream (no labels)
+  #   _ground_truth.jsonl   — full records with true_positive, threat_class, behavior
+  telemetry_dir: "security_telemetry"
+  log_format: "all"
+  idp_logs: true
