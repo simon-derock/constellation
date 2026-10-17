@@ -72,7 +72,7 @@ Every requirement carries one status:
 Rules:
 
 1. **A target is never presented as a result.** A number appears in the README, on the site or in the video only after a recorded run produced it. Every recorded run includes the command, commit SHA, dataset revision, model IDs, and a per-question artifact.
-2. Results are dated audit files in `docs/audits/`. This specification stays stable; current state lives in `STATE.md`.
+2. Results are dated audit files in `docs/audits/`. This specification stays stable; current state lives in `MEMORY.md`.
 3. Negative results are published next to positive ones.
 4. Every acceptance criterion has an ID (`AC-<area>-<nn>`). CI fails if a test cites an unknown AC; the release gate fails if any AC lacks a test (see [SPEC:ENGINEERING]).
 
@@ -156,7 +156,7 @@ If FalkorDB is removed, nothing works:
 11. **Reproducible or unclaimed.** Every published number has a command, a commit, data hashes and a per-question artifact.
 12. **Complexity must pay for itself.** A component stays only if an ablation shows it improves a gate metric. Architecture for show is prohibited.
 13. **Privacy by construction.** People in public corpora are shown as stable pseudonyms. Raw corpora are never re-published in bulk. Canary-marked benchmark content never reaches services that train on inputs.
-14. **Source-of-truth order.** Tests and schemas define what the code must do. This file and its ADRs define the intended design. `STATE.md` records where things stand. Git records history. When any of these disagree, stop and reconcile before continuing.
+14. **Source-of-truth order.** Tests and schemas define what the code must do. This file and its ADRs define the intended design. `MEMORY.md` records where things stand. Git records history. When any of these disagree, stop and reconcile before continuing.
 [/SPEC:CONSTITUTION]
 
 ---
@@ -1264,7 +1264,7 @@ CI (GitHub Actions) runs the same chain, plus `gitleaks`, `osv-scanner`, integra
 ```text
 constellation/
 ├── PLAN_SPEC.md            # this file — intended design and acceptance criteria
-├── STATE.md                # current state, latest measured results, ordered next actions
+├── MEMORY.md               # current state, latest measured results, ordered next actions
 ├── README.md               # overview, setup, graph model, Cypher, results, disclosure
 ├── src/constellation/
 │   ├── domain/  graph/ (cypher/*.cypher)  ingest/  retrieval/
@@ -1304,7 +1304,7 @@ Waves W1–W4 iterate the miss → root cause → general fix → regression tes
 [SPEC:DONE]
 ## 24. Definition of done
 
-- Every AC has a passing test or a recorded run; `STATE.md` shows its status.
+- Every AC has a passing test or a recorded run; `MEMORY.md` shows its status.
 - The gate sheet ([SPEC:EVAL]) is published with raw and audited scores, misses and root causes.
 - The live deployment passes the end-to-end probe; snapshots restore after a cold start.
 - The README contains setup, the graph data model, the Cypher catalogue, results, limitations and the AI-assistance disclosure.

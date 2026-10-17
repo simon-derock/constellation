@@ -4,7 +4,7 @@
 
 Built for **Graph Hacks: Context for AI Agents** (WeMakeDevs × FalkorDB). Entered in **Track 01 · Agents That Act**, **Track 02 · Agent Memory and Coordination** and **Track 03 · Company Brain**.
 
-> **Status:** specification frozen, build in progress. Every number on this page will come from a recorded run; until then there are none. Live progress: [`STATE.md`](STATE.md) · full design: [`PLAN_SPEC.md`](PLAN_SPEC.md).
+> **Status:** specification frozen, build in progress. Every number on this page will come from a recorded run; until then there are none. Live progress: [`MEMORY.md`](MEMORY.md) · full design: [`PLAN_SPEC.md`](PLAN_SPEC.md).
 
 ---
 
