@@ -15,6 +15,8 @@ from typing import Dict, List, Optional, Set, Tuple
 logger = logging.getLogger("orgforge.vendored")
 # nothing is stripped: generated labels carry unstripped export paths
 BASE = Path("/__orgforge_export_root__")
+# the org chart is not needed by any copied decision path; _dept_of_actor sees an empty chart
+CONFIG = {"org_chart": {}}
 
 
 class SimEvent:  # structural stand-in for orgforge.memory.SimEvent
@@ -68,6 +70,48 @@ _EXPLICIT_CAUSAL_LINKS = {
     "review_triggers_revision",
     "hire_fills_knowledge_gap",
     "escalation_from_zendesk",
+}
+
+
+_SILENCE_PAIRS: List[Tuple[str, str, str]] = [
+    ("incident_opened", "postmortem_created", "jira"),
+    ("incident_opened", "incident_resolved", "jira"),
+    ("customer_escalation", "zd_ticket_opened", "email"),
+    ("customer_email_routed", "zd_ticket_opened", "email"),
+    ("inbound_external_email", "customer_email_routed", "email"),
+    ("inbound_external_email", "jira_from_vendor_email", "email"),
+    ("design_discussion", "confluence_created", "zoom_transcript"),
+    ("knowledge_gap_detected", "confluence_created", "gap_domain"),
+    ("zd_tickets_escalated", "incident_opened", "jira"),
+    ("employee_departed", "sf_ownership_lapsed", "actor"),
+    ("employee_departed", "ticket_reassigned", "actor"),
+    ("pr_opened", "pr_merged", "pr"),
+    ("incident_opened", "zd_tickets_escalated", "jira"),
+    ("employee_hired", "onboarding_session", "name"),
+    ("employee_hired", "warmup_1on1", "name"),
+    ("incident_opened", "sf_deals_risk_flagged", "jira"),
+    ("assignment_domain_mismatch", "knowledge_gap_detected", "ticket_id"),
+    ("design_discussion", "confluence_created", "slack_thread"),
+    ("email_dropped", "zd_ticket_opened", "email"),
+]
+
+
+_RESPONSE_TYPE_SUBSYSTEM: Dict[str, str] = {
+    "postmortem_created": "confluence",
+    "incident_resolved": "jira",
+    "zd_ticket_opened": "zendesk",
+    "customer_email_routed": "email",
+    "jira_from_vendor_email": "jira",
+    "confluence_created": "confluence",
+    "sf_ownership_lapsed": "salesforce",
+    "ticket_reassigned": "jira",
+    "pr_merged": "git",
+    "zd_tickets_escalated": "zendesk",
+    "incident_opened": "jira",
+    "onboarding_session": "slack",
+    "warmup_1on1": "slack",
+    "sf_deals_risk_flagged": "salesforce",
+    "knowledge_gap_detected": "confluence",
 }
 
 
@@ -131,6 +175,28 @@ class CausalLink:
         d = asdict(self)
         d["subsystems_involved"] = sorted(self.subsystems_involved)
         return d
+
+
+@dataclass
+class AbsenceRecord:
+    """
+    A case where a trigger event fired but its expected response event did not.
+    The state machine is the arbiter — no inference about intent.
+    """
+
+    trigger_event_id: str
+    trigger_event_type: str
+    expected_response_type: str
+    trigger_day: int
+    trigger_actors: List[str]
+    trigger_artifact_ids: Dict[str, str]
+    link_field: str
+    link_value: str
+    subsystem: str
+    expected_search_space: List[str]  # artifact IDs the agent must check
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 class CausalLinkIndexer:
@@ -1213,3 +1279,319 @@ class CausalLinkIndexer:
             f"(cap={self.MAX_LINKS_PER_TYPE}/type, {len(by_type_counts)} types covered)"
         )
         return links
+
+
+class AbsenceCatalogBuilder:
+    def __init__(self, events, mem=None):
+        self._events = events
+        self._mem = mem
+
+    def _dept_of_actor(self, actor: str) -> Optional[str]:
+        for dept, members in CONFIG["org_chart"].items():
+            if actor in members:
+                return dept.lower().replace(" ", "_")
+        return None
+
+    def _match_key(self, event: SimEvent, link_field: str) -> Optional[str]:
+        val = (event.artifact_ids or {}).get(link_field)
+        if val:
+            return val
+        val = event.facts.get(link_field)
+        if val:
+            return str(val)
+
+        if link_field == "gap_domain" and event.type == "knowledge_gap_detected":
+            method = event.facts.get("detection_method", "")
+
+            if method in ("embedding_similarity", "centrality_vacuum"):
+                areas = event.facts.get("gap_areas")
+                if areas:
+                    first = areas[0] if isinstance(areas, list) else areas
+                    if str(first).strip().lower() not in _VAGUE_GAP_TERMS:
+                        return str(first)
+
+            elif method == "reviewer_audit":
+                pr = (event.artifact_ids or {}).get("pr")
+                if pr:
+                    return str(pr)
+
+            elif method == "author_self_audit":
+                return None
+
+        if link_field == "actor" and event.actors:
+            return event.actors[0]
+
+        return None
+
+    def _expected_search_space(
+        self,
+        trigger: SimEvent,
+        expected_response_type: str,
+        artifact_ids_override: Optional[dict] = None,
+    ) -> List[str]:
+        artifact_ids = artifact_ids_override or trigger.artifact_ids
+        search_space: List[str] = list(_safe_artifact_values(artifact_ids))
+
+        if expected_response_type == "postmortem_created":
+            pass
+
+        elif expected_response_type == "incident_resolved":
+            jira_id = (artifact_ids or {}).get("jira", "")
+            if jira_id:
+                search_space.append(jira_id)
+
+        elif expected_response_type == "zd_ticket_opened":
+            email_id = (artifact_ids or {}).get("email", "")
+            if email_id:
+                search_space.append(email_id)
+
+        elif expected_response_type == "customer_email_routed":
+            email_id = (artifact_ids or {}).get("email", "")
+            if email_id:
+                search_space.append(email_id)
+
+        elif expected_response_type == "confluence_created":
+            zoom_id = (artifact_ids or {}).get("zoom_transcript", "")
+            if zoom_id:
+                search_space.append(zoom_id)
+            slack_id = (artifact_ids or {}).get("slack", "")
+            if slack_id:
+                search_space.append(slack_id)
+
+        elif expected_response_type == "sf_ownership_lapsed":
+            pass
+
+        elif expected_response_type == "ticket_reassigned":
+            pass
+
+        elif expected_response_type == "pr_merged":
+            pr_id = (artifact_ids or {}).get("pr", "")
+            if pr_id:
+                search_space.append(pr_id)
+
+        elif expected_response_type == "zd_tickets_escalated":
+            jira_id = (artifact_ids or {}).get("jira", "")
+            if jira_id:
+                search_space.append(jira_id)
+
+        elif expected_response_type == "onboarding_session":
+            slack_thread = (artifact_ids or {}).get("slack_thread", "")
+            if slack_thread:
+                search_space.append(slack_thread)
+
+        elif expected_response_type == "warmup_1on1":
+            slack_thread = (artifact_ids or {}).get("slack_thread", "")
+            if slack_thread:
+                search_space.append(slack_thread)
+
+        elif expected_response_type == "sf_deals_risk_flagged":
+            jira_id = (artifact_ids or {}).get("jira", "")
+            if jira_id:
+                search_space.append(jira_id)
+
+        elif expected_response_type == "jira_from_vendor_email":
+            email_id = (artifact_ids or {}).get("email", "")
+            if email_id:
+                search_space.append(email_id)
+
+        elif expected_response_type == "knowledge_gap_detected":
+            ticket_id = trigger.facts.get("ticket_id", "")
+            if ticket_id:
+                search_space.append(ticket_id)
+            pr_id = (artifact_ids or {}).get("pr", "")
+            confluence_id = (artifact_ids or {}).get("confluence", "")
+            slack_thread = (artifact_ids or {}).get("slack_thread", "")
+            if pr_id:
+                search_space.append(pr_id)
+            if confluence_id:
+                search_space.append(confluence_id)
+            if slack_thread:
+                search_space.append(slack_thread)
+
+        return list(dict.fromkeys(search_space))
+
+    def build(self) -> Tuple[List[AbsenceRecord], List[AbsenceRecord]]:
+        records: List[AbsenceRecord] = []
+        confirmed: List[AbsenceRecord] = []
+
+        for trigger_type, response_type, link_field in _SILENCE_PAIRS:
+            trigger_events = [
+                e for e in self._events if e.type == trigger_type and e.day >= 1
+            ]
+
+            for trigger in trigger_events:
+                trigger_artifacts = _safe_artifact_values(trigger.artifact_ids)
+                link_key = self._match_key(trigger, link_field)
+
+                if trigger_type == "inbound_external_email":
+                    category = trigger.facts.get("category", "")
+                    if (
+                        response_type == "customer_email_routed"
+                        and category == "vendor"
+                    ):
+                        continue
+                    if (
+                        response_type == "jira_from_vendor_email"
+                        and category != "vendor"
+                    ):
+                        continue
+
+                detection_method = trigger.facts.get("detection_method", "")
+                if (
+                    trigger_type == "knowledge_gap_detected"
+                    and detection_method == "author_self_audit"
+                ):
+                    audited_confluence = (trigger.artifact_ids or {}).get("confluence")
+                    if audited_confluence:
+                        trigger_artifacts = trigger_artifacts - {
+                            str(audited_confluence)
+                        }
+
+                if response_type == "confluence_created" and (
+                    trigger.facts.get("spawned_doc")
+                    or "confluence" in (trigger.artifact_ids or {})
+                ):
+                    continue
+
+                response_found = False
+
+                for e in self._events:
+                    if e.type != response_type or e.day < trigger.day:
+                        continue
+
+                    e_match_key = self._match_key(e, link_field)
+
+                    if (
+                        link_key
+                        and e_match_key is not None
+                        and (
+                            e_match_key == link_key
+                            or link_key in str(e.artifact_ids)
+                            or link_key in str(e.facts)
+                        )
+                    ):
+                        response_found = True
+                        break
+
+                    response_artifacts = _safe_artifact_values(e.artifact_ids)
+                    if trigger_artifacts & response_artifacts:
+                        response_found = True
+                        break
+
+                subsystem = _RESPONSE_TYPE_SUBSYSTEM.get(
+                    response_type,
+                    _ARTIFACT_SUBSYSTEM.get(
+                        next(iter(trigger.artifact_ids or {}), ""), "default"
+                    ),
+                )
+                search_space = self._expected_search_space(trigger, response_type)
+
+                trigger_artifact_ids = dict(trigger.artifact_ids or {})
+
+                if (
+                    response_type == "sf_ownership_lapsed"
+                    and trigger_type == "employee_departed"
+                ):
+                    actor = (trigger.actors or [""])[0]
+                    if actor:
+                        owned_accounts = [
+                            doc["account_id"]
+                            for doc in self._mem._db["sf_accounts"].find(
+                                {"owner": actor}, {"account_id": 1, "_id": 0}
+                            )
+                            if doc.get("account_id")
+                        ]
+                        owned_opps = [
+                            doc["opportunity_id"]
+                            for doc in self._mem._db["sf_opps"].find(
+                                {
+                                    "owner": actor,
+                                    "stage": {"$nin": ["Closed Won", "Closed Lost"]},
+                                },
+                                {"opportunity_id": 1, "_id": 0},
+                            )
+                            if doc.get("opportunity_id")
+                        ]
+                        if owned_accounts:
+                            trigger_artifact_ids["sf_accounts"] = owned_accounts
+                        if owned_opps:
+                            trigger_artifact_ids["sf_opps"] = owned_opps
+
+                if (
+                    response_type == "zd_ticket_opened"
+                    and trigger_type == "customer_email_routed"
+                ):
+                    email_id = (trigger.artifact_ids or {}).get("email", "")
+                    if email_id:
+                        linked_tickets = [
+                            doc["id"]
+                            for doc in self._mem._db["zd_tickets"].find(
+                                {"source_email_id": email_id}, {"id": 1, "_id": 0}
+                            )
+                            if doc.get("id")
+                        ]
+                        if linked_tickets:
+                            trigger_artifact_ids["zd_ticket"] = linked_tickets
+
+                if response_found:
+                    response_event_artifacts = sorted(
+                        _safe_artifact_values(e.artifact_ids)
+                    )
+                    enriched_search_space = list(
+                        dict.fromkeys(search_space + response_event_artifacts)
+                    )
+
+                    confirmed_rec = AbsenceRecord(
+                        trigger_event_id=trigger.mongo_id,
+                        trigger_event_type=trigger_type,
+                        expected_response_type=response_type,
+                        trigger_day=trigger.day,
+                        trigger_actors=list(dict.fromkeys(trigger.actors or [])),
+                        trigger_artifact_ids=dict(trigger.artifact_ids or {}),
+                        link_field=link_field,
+                        link_value=link_key or "N/A",
+                        subsystem=subsystem,
+                        expected_search_space=enriched_search_space,
+                    )
+                    confirmed.append(confirmed_rec)
+                else:
+                    absence_rec = AbsenceRecord(
+                        trigger_event_id=trigger.mongo_id,
+                        trigger_event_type=trigger_type,
+                        expected_response_type=response_type,
+                        trigger_day=trigger.day,
+                        trigger_actors=list(dict.fromkeys(trigger.actors or [])),
+                        trigger_artifact_ids=dict(trigger.artifact_ids or {}),
+                        link_field=link_field,
+                        link_value=link_key or "N/A",
+                        subsystem=subsystem,
+                        expected_search_space=search_space,
+                    )
+                    records.append(absence_rec)
+
+        logger.info(f"[absence_catalog] {len(records)} absence records cataloged")
+        logger.info(
+            f"[absence_catalog] {len(confirmed)} confirmed response records cataloged"
+        )
+
+        MAX_PER_TRIGGER = 8
+        capped: List[AbsenceRecord] = []
+        trigger_counts: Dict[str, int] = defaultdict(int)
+        random.shuffle(records)
+        for r in records:
+            if trigger_counts[r.trigger_event_type] < MAX_PER_TRIGGER:
+                capped.append(r)
+                trigger_counts[r.trigger_event_type] += 1
+        logger.info(
+            f"[absence_catalog] Capped to {len(capped)} records ({MAX_PER_TRIGGER}/trigger_type)"
+        )
+
+        confirmed_capped: List[AbsenceRecord] = []
+        confirmed_counts: Dict[str, int] = defaultdict(int)
+        random.shuffle(confirmed)
+        for r in confirmed:
+            if confirmed_counts[r.trigger_event_type] < MAX_PER_TRIGGER:
+                confirmed_capped.append(r)
+                confirmed_counts[r.trigger_event_type] += 1
+
+        return capped, confirmed_capped

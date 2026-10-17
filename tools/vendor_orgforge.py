@@ -7,10 +7,20 @@ from pathlib import Path
 
 # copies OrgForge's causal-link rules verbatim from a pinned checkout; never edit the output by hand
 
-CONSTANTS = ("_ARTIFACT_SUBSYSTEM", "_EXPLICIT_CAUSAL_LINKS", "_VAGUE_GAP_TERMS")
+CONSTANTS = (
+    "_ARTIFACT_SUBSYSTEM",
+    "_EXPLICIT_CAUSAL_LINKS",
+    "_VAGUE_GAP_TERMS",
+    "_SILENCE_PAIRS",
+    "_RESPONSE_TYPE_SUBSYSTEM",
+)
 FUNCTIONS = ("_strip_root", "_safe_artifact_values")
-METHODS = ("_subsystems_for_event", "_find_effect_event", "_counterfactual_template", "build")
-CLASSES = ("CausalLink",)
+# class → methods copied; each class gets a constructor taking events directly instead of a Mongo-backed Memory
+METHODS = {
+    "CausalLinkIndexer": ("_subsystems_for_event", "_find_effect_event", "_counterfactual_template", "build"),
+    "AbsenceCatalogBuilder": ("_dept_of_actor", "_match_key", "_expected_search_space", "build"),
+}
+CLASSES = ("CausalLink", "AbsenceRecord")
 
 HEADER = """# Vendored verbatim from aeriesec/orgforge {commit} eval/eval_harness.py
 # Licence: MIT, see third_party/orgforge/LICENSE.
@@ -29,6 +39,8 @@ from typing import Dict, List, Optional, Set, Tuple
 logger = logging.getLogger("orgforge.vendored")
 # nothing is stripped: generated labels carry unstripped export paths
 BASE = Path("/__orgforge_export_root__")
+# the org chart is not needed by any copied decision path; _dept_of_actor sees an empty chart
+CONFIG = {{"org_chart": {{}}}}
 
 
 class SimEvent:  # structural stand-in for orgforge.memory.SimEvent
@@ -38,15 +50,12 @@ class SimEvent:  # structural stand-in for orgforge.memory.SimEvent
 """
 
 
-# the only code not copied: a constructor that takes events directly instead of a Mongo-backed Memory
-INDEXER_STUB = """class CausalLinkIndexer:
-    MAX_LINKS_PER_TYPE: int = 15
-
-    def __init__(self, events, mem=None):
-        self._events = events
-        self._mem = mem
-
-"""
+# the only code not copied: constructors that take events directly instead of a Mongo-backed Memory
+STUBS = {
+    "CausalLinkIndexer": "class CausalLinkIndexer:\n    MAX_LINKS_PER_TYPE: int = 15\n\n",
+    "AbsenceCatalogBuilder": "class AbsenceCatalogBuilder:\n",
+}
+INIT = "    def __init__(self, events, mem=None):\n        self._events = events\n        self._mem = mem\n\n"
 
 
 def segment(lines: list[str], node: ast.stmt) -> str:
@@ -71,17 +80,12 @@ def extract(source: str) -> str:
         )
         if name in wanted:
             out.append(segment(lines, node).rstrip("\n"))
-        if isinstance(node, ast.ClassDef) and node.name == "CausalLinkIndexer":
+        if isinstance(node, ast.ClassDef) and node.name in METHODS:
+            copied = METHODS[node.name]
             body = [
-                segment(lines, m).rstrip("\n")
-                for m in node.body
-                if isinstance(m, ast.FunctionDef) and m.name in METHODS
+                segment(lines, m).rstrip("\n") for m in node.body if isinstance(m, ast.FunctionDef) and m.name in copied
             ]
-            out.append(
-                "class CausalLinkIndexer:\n    MAX_LINKS_PER_TYPE: int = 15\n\n"
-                "    def __init__(self, events, mem=None):\n        self._events = events\n        self._mem = mem\n\n"
-                + "\n\n".join(body)
-            )
+            out.append(STUBS[node.name] + INIT + "\n\n".join(body))
     return "\n\n\n".join(out) + "\n"
 
 
