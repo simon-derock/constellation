@@ -244,33 +244,71 @@ If FalkorDB is removed, nothing works:
 ### 5.1 Containers (C4 level 2)
 
 ```mermaid
-flowchart LR
-  subgraph Edge["Public edge"]
-    WEB["Web app (Vite + React)<br/>constellation.philipsimonderock.com"]
+flowchart TB
+  U["Browser"]:::client
+  MC["MCP clients · IDEs · other agents"]:::client
+
+  subgraph EDGE["Vercel · static web"]
+    UI["React · Sigma.js<br/>Ask · Time · Explorer · Scoreboard · Live · Film"]:::edge
   end
-  subgraph Core["Constellation runtime"]
-    API["FastAPI + FastMCP<br/>(one process)"]
-    AG["Agent FSM<br/>(PydanticAI + own FSM)"]
-    RET["Retrieval plane<br/>ACL bitmaps · FT · vector · BM25 · fusion"]
-    ING["Ingestion + sync<br/>(event log → MERGE)"]
-    FDB[("FalkorDB<br/>tenant graphs · memory graphs<br/>bitmaps · streams")]
+
+  subgraph CORE["Render · one container · the only always-on compute"]
+    API["FastAPI + FastMCP<br/>/api · /mcp"]:::core
+    AG["Agent FSM<br/>plan · tools · verify · act"]:::core
+    BR["Brain · Track 03<br/>owners · knowers · decisions · freshness"]:::core
+    MEM["Memory · Track 02<br/>episodes · facts · procedures · handoffs"]:::core
+    RT["Retrieval plane<br/>ACL bitmaps · full-text · vector · RRF · expansion"]:::core
+    FDB[("FalkorDB 4.22<br/>brain:* and mem:* graphs<br/>bitmaps · streams")]:::db
   end
-  subgraph Batch["Batch compute"]
-    KG["Kaggle jobs<br/>embeddings · TTS · STT · bulk extraction · eval"]
-    HFD[("Private dataset store<br/>snapshots · indexes · manifests")]
+
+  subgraph EXT["Free external services"]
+    WAI["Workers AI<br/>LLM · query embeddings · speech-to-text"]:::ext
+    GH["GitHub · FalkorDB org<br/>live tenant source"]:::ext
+    SNAP[("GitHub Releases<br/>snapshots + manifests")]:::store
+    JRN[("Cloudflare D1<br/>memory journal")]:::store
   end
-  subgraph Sched["Schedulers"]
-    GHA["GitHub Actions cron"]
-    CFW["Cloudflare Worker cron"]
+
+  subgraph BATCH["Kaggle · batch factory · never on the request path"]
+    JOBS["chunk · embed · bm25 · extract · speech twin · eval-batch"]:::batch
   end
-  WEB -->|/api /mcp| API
-  API --> AG --> RET --> FDB
-  API -->|RO_QUERY only| FDB
-  ING -->|writes| FDB
-  KG --> HFD --> ING
-  GHA -->|sync · probe · snapshot| API
-  CFW -->|health| API
-  EXT["External MCP clients"] -->|MCP| API
+
+  subgraph SCHED["Schedulers"]
+    GHA["GitHub Actions cron<br/>sync · probe · snapshot"]:::sched
+    CFW["Cloudflare Worker cron<br/>health · alert"]:::sched
+  end
+
+  U --> UI
+  UI -->|"/api · /mcp rewrite"| API
+  MC -->|"MCP"| API
+  API --> AG
+  AG --> BR
+  AG --> MEM
+  BR --> RT
+  RT -->|"GRAPH.RO_QUERY only"| FDB
+  MEM -->|"compare-and-set writes"| FDB
+  MEM -->|"append"| JRN
+  AG -->|"locked model"| WAI
+  API -->|"ETag sync"| GH
+  JOBS -->|"sharded parquet + sha256"| SNAP
+  SNAP -->|"restore on boot"| FDB
+  JRN -->|"replay on boot"| FDB
+  FDB -->|"BGSAVE"| SNAP
+  GHA --> API
+  CFW --> API
+
+  classDef client fill:#f4f4f5,stroke:#71717a,color:#18181b
+  classDef edge fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+  classDef core fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+  classDef db fill:#fef3c7,stroke:#d97706,color:#451a03,stroke-width:2px
+  classDef ext fill:#ecfdf5,stroke:#059669,color:#064e3b
+  classDef store fill:#ecfdf5,stroke:#059669,color:#064e3b
+  classDef batch fill:#fce7f3,stroke:#db2777,color:#500724
+  classDef sched fill:#f1f5f9,stroke:#475569,color:#0f172a
+  style EDGE fill:#f0f9ff,stroke:#7dd3fc
+  style CORE fill:#faf5ff,stroke:#c4b5fd
+  style EXT fill:#f0fdf4,stroke:#86efac
+  style BATCH fill:#fdf2f8,stroke:#f9a8d4
+  style SCHED fill:#f8fafc,stroke:#cbd5e1
 ```
 
 ### 5.2 Bounded contexts (hexagonal)
@@ -311,6 +349,134 @@ Adapters exist for production and for tests (in-memory and testcontainers).
 ## 6. Graph data model
 
 Each tenant has one graph, `brain:<tenant>`. Each user and session has one graph, `mem:<tenant>:<principal>`. `mem:template` is the template they are cloned from.
+
+### 6.0 Model at a glance
+
+Brain graph, `brain:<tenant>`:
+
+```mermaid
+classDiagram
+  direction LR
+  class Person {
+    +uuid pid
+    +string alias
+    +string kind
+  }
+  class Team {
+    +string id
+  }
+  class Component {
+    +string id
+  }
+  class Space {
+    +string id
+    +bitmap readers derived
+  }
+  class Artifact {
+    +uuid aid
+    +string kind
+    +int day
+    +datetime t_tx
+    +uint32 ix
+  }
+  class Chunk {
+    +uuid cid
+    +int ord
+    +string text
+    +vecf32 emb
+  }
+  class Claim {
+    +uuid kid
+    +string predicate
+    +string value
+    +interval valid
+    +datetime t_tx
+    +string status
+  }
+  class Decision {
+    +uuid did
+    +string status
+  }
+  class Meeting {
+    +uuid mid
+  }
+  class Utterance {
+    +uuid uid
+    +int t0_ms
+    +int t1_ms
+  }
+  Person --> Team : MEMBER_OF from..to
+  Person --> Component : OWNS from..to
+  Person --> Person : ESCALATES_TO
+  Person --> Space : CAN_READ from..to
+  Person --> Artifact : AUTHORED · REVIEWED · ASSIGNED
+  Artifact --> Space : IN
+  Artifact --> Chunk : HAS_CHUNK
+  Chunk --> Chunk : NEXT
+  Artifact --> Artifact : REPLIES_TO · REFERENCES
+  Chunk --> Person : MENTIONS
+  Claim --> Chunk : EVIDENCED_BY start..end
+  Claim --> Utterance : EVIDENCED_BY t0..t1
+  Claim --> Claim : SUPERSEDES · CONTRADICTS
+  Claim --> Component : ABOUT
+  Decision --> Meeting : DECIDED_IN
+  Decision --> Person : DECIDED_BY
+  Decision --> Component : AFFECTS
+  Meeting --> Utterance : HAS_UTTERANCE
+  Utterance --> Person : SPOKEN_BY
+```
+
+Memory graph, `mem:<tenant>:<principal>`:
+
+```mermaid
+classDiagram
+  direction LR
+  class Session {
+    +uuid sid
+    +string principal
+  }
+  class Turn {
+    +int n
+    +string role
+    +uuid proof_id
+  }
+  class Episode {
+    +uuid eid
+    +string task
+    +int ver
+  }
+  class Fact {
+    +uuid id
+    +string value
+    +int ver
+  }
+  class Procedure {
+    +uuid id
+    +string tool_plan
+    +int verified_runs
+  }
+  class Agent {
+    +string name
+  }
+  class Handoff {
+    +uuid hid
+    +string state_sha256
+    +int ver
+  }
+  class Action {
+    +uuid act_id
+    +string kind
+    +string status
+  }
+  Session --> Turn : HAS_TURN
+  Turn --> Turn : NEXT
+  Agent --> Episode : RECORDED
+  Episode --> Fact : CONSOLIDATED_INTO
+  Episode --> Procedure : DISTILLED_INTO
+  Agent --> Handoff : HANDED_OFF
+  Handoff --> Agent : TO
+  Agent --> Action : PROPOSED
+```
 
 ### 6.1 Nodes
 
@@ -447,6 +613,21 @@ RETURN f.ver
 [SPEC:INGEST]
 ## 8. Ingestion
 
+```mermaid
+flowchart LR
+  S1["Apex · OrgForge"] --> N
+  S3["FalkorDB org · GitHub"] --> N
+  S2["Redwood · EnterpriseRAG-Bench"] --> K
+  N["Normalise + chunk<br/>pure, structure-native"] --> E[("Append-only<br/>event log")]
+  K["Kaggle factory<br/>chunk · embed · bm25 · extract · speech"] --> M["Shards + sha256 manifest"]
+  E --> L
+  M --> L["Load<br/>UNWIND · MERGE · idempotent"]
+  L --> A{"Post-load audit<br/>counts · orphans · intervals<br/>bitmap ≡ graph"}
+  A -->|"pass"| G[("FalkorDB")]
+  A -->|"fail"| Q["Quarantine + report"]
+  G --> D["Derived indexes<br/>bitmaps · full-text · vector"]
+```
+
 1. **Fetch.** Every raw record is written to an append-only log, keyed by `sha256(source, native_id, content)`.
 2. **Normalise.** Each source has a pure function that turns a raw record into typed domain events, covering artifacts, people, spaces, membership, ownership, mentions and claims.
 3. **Identity.**
@@ -518,6 +699,24 @@ query ─▶ principal bitmap (Redis BITOP over the principal's Spaces, as of D)
 - A new claim with the same `(subject, predicate)` closes the open interval of the old claim and adds `SUPERSEDES`.
 - An incompatible value inside an overlapping interval adds `CONTRADICTS`, and both claims are shown with their evidence.
 - A sweep job re-checks open intervals against the latest synced state.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant CR as Scheduler
+  participant SY as Sync
+  participant GH as GitHub API
+  participant FDB as FalkorDB
+  participant CA as Answer cache
+  CR->>SY: every 10 minutes
+  SY->>GH: conditional GET with ETag and cursor
+  GH-->>SY: changed issues and PRs
+  SY->>FDB: MERGE change events as new claims
+  FDB-->>SY: open claims with the same subject and predicate
+  SY->>FDB: close old interval and link SUPERSEDES
+  SY->>CA: invalidate answers that cite superseded claims
+  Note over CA: stale-since marker visible within 10 minutes
+```
 [/SPEC:BRAIN]
 
 ---
@@ -531,6 +730,32 @@ query ─▶ principal bitmap (Redis BITOP over the principal's Spaces, as of D)
 - Identical repeated tool calls are refused (cached per run).
 - `VERIFY` re-runs the cited Cypher and compares the result hashes.
 - If the answer cannot be verified, the FSM abstains with the reason.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Plan
+  Plan --> Tool: tool chosen
+  Tool --> Plan: evidence missing
+  Tool --> Verify: evidence sufficient
+  Plan --> Abstain: budget spent or no tool fits
+  Verify --> Plan: hash mismatch
+  Verify --> Answer: proof replays
+  Verify --> Propose: action warranted
+  Propose --> Await
+  Await --> Execute: approved
+  Await --> Answer: rejected
+  Execute --> Answer
+  Answer --> [*]
+  Abstain --> [*]
+  note right of Plan
+    at most 5 planning calls
+    identical tool calls refused
+  end note
+  note right of Await
+    approval is a graph event
+    execution idempotent on payload hash
+  end note
+```
 
 **How an agent reaches Cypher.** The model chooses *what to ask*; it almost never writes the query text.
 
@@ -585,6 +810,27 @@ query ─▶ principal bitmap (Redis BITOP over the principal's Spaces, as of D)
 
 - Every write is a compare-and-set on `ver`. A conflict re-reads and retries with bounded backoff, and every retry is recorded.
 - Each tenant and each user has its own graph, cloned from `mem:template` with `GRAPH.COPY`. No query can address another tenant's graph, because graph names are resolved from the authenticated principal.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant A as Agent A
+  participant B as Agent B
+  participant M as mem graph
+  participant J as Journal
+  A->>M: read Fact, ver 7
+  B->>M: read Fact, ver 7
+  A->>M: SET where ver = 7
+  M-->>A: ok, ver 8
+  A->>J: append write ver 8
+  B->>M: SET where ver = 7
+  M-->>B: 0 rows, conflict
+  B->>M: re-read ver 8, merge, SET where ver = 8
+  M-->>B: ok, ver 9
+  B->>J: append write ver 9
+  A->>M: write Handoff with task-state sha256
+  B->>M: claim Handoff and verify sha256
+```
 
 | AC | Acceptance |
 |---|---|
@@ -651,6 +897,33 @@ All of this runs as batch work, never in the request path.
 
 [SPEC:PROOF]
 ## 15. Proof and trace schema
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as Asker
+  participant API as API or MCP
+  participant ACL as ACL bitmaps
+  participant AG as Agent FSM
+  participant LLM as Locked model
+  participant FDB as FalkorDB
+  U->>API: ask(question, as_of, principal)
+  API->>ACL: allow-list for principal on day D
+  ACL-->>API: bitmap + sha256
+  API->>AG: question + tool catalogue
+  AG->>LLM: pick tool and typed arguments
+  LLM-->>AG: owner_as_of(component, day)
+  AG->>FDB: GRAPH.RO_QUERY owner_as_of
+  FDB-->>AG: rows + result hash
+  AG->>FDB: hybrid retrieval behind the bitmap
+  FDB-->>AG: admitted spans only
+  AG->>FDB: verify by replaying every cited query
+  FDB-->>AG: hashes match
+  AG->>LLM: phrase the answer from admitted spans
+  LLM-->>AG: answer text
+  AG-->>API: answer + proof + trace
+  API-->>U: answer · spans · audio clips · replay link
+```
 
 ```json
 {
