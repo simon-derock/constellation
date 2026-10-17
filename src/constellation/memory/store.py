@@ -91,6 +91,10 @@ class MemoryStore:
         graph = self._db.select_graph(self.graph_name(principal))
         return list(graph.query(cypher, params=clean(params or {})).result_set)
 
+    def query(self, principal: str, cypher: str, params: dict[str, object] | None = None) -> list[list[object]]:
+        # the one place other stores write to a principal's graph: same validated name, same parameter hygiene
+        return self._q(principal, cypher, params)
+
     def provision(self, principal: str) -> str:
         name = self.graph_name(principal)
         if name in self._db.list_graphs():

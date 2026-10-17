@@ -1,4 +1,5 @@
 import json
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from constellation.agents.llm import LLMError, Reply, Usage
 from constellation.api.app import Settings, Tenant, create_app
 from constellation.graph.read import ReadPort
 from constellation.ingest.build_apex import build
+from constellation.memory.store import MemoryStore
 
 pytestmark = pytest.mark.integration
 GRAPH = "brain:apex-api"
@@ -195,3 +197,130 @@ def test_actors_come_from_the_server_side_role_table(port: ReadPort, tmp_path: P
     assert actors == [{"name": "Alex", "role": "engineering_mobile"}, {"name": "Tom", "role": "hr_ops"}]
     assert client.get("/api/v1/actors", params={"tenant": "nope"}).status_code == 422
     assert client.get("/api/v1/ownership", params={"tenant": "nope"}).status_code == 422
+
+
+class FakeIssues:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def execute(self, action: Any) -> dict[str, object]:
+        self.calls += 1
+        return {"dry_run": False, "url": "https://github.com/o/r/issues/9", "number": 9}
+
+
+def act_client(
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path, approver_key: str = "s3cret", sink: FakeIssues | None = None
+) -> TestClient:
+    settings = Settings(
+        tenants={"apex": Tenant("apex", GRAPH, "Apex", {})},
+        allowed_origins=(),
+        published=tmp_path,
+        approver_key=approver_key,
+        real_actions_per_day=1,
+    )
+    memory = MemoryStore(falkordb, f"api{uuid.uuid4().hex[:6]}")
+    return TestClient(
+        create_app(port, settings, llm_factory=lambda: Scripted([]), memory=memory, real_sink=sink, repo="o/r")
+    )
+
+
+def first_suggestion(client: TestClient) -> dict[str, Any]:
+    found = client.get("/api/v1/actions/suggestions", params={"tenant": "apex"}).json()["suggestions"]
+    return next(s for s in found if "kubernetes-deploy" in s["title"])
+
+
+@pytest.mark.ac("AC-T1-04")
+def test_suggestions_come_from_the_ownership_graph_with_their_evidence(
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path
+) -> None:
+    client = act_client(port, falkordb, tmp_path)
+    suggestion = first_suggestion(client)
+    assert "day 34" in suggestion["body"]
+    assert suggestion["evidence"][0]["name"] == "ownership_all"
+    assert len(suggestion["payload_hash"]) == 64
+
+
+@pytest.mark.ac("AC-INV-05")
+def test_only_a_server_derived_suggestion_can_be_proposed(port: ReadPort, falkordb: FalkorDB, tmp_path: Path) -> None:
+    client = act_client(port, falkordb, tmp_path)
+    forged = client.post("/api/v1/actions", json={"tenant": "apex", "payload_hash": "f" * 64})
+    assert forged.status_code == 422
+    suggestion = first_suggestion(client)
+    made = client.post("/api/v1/actions", json={"tenant": "apex", "payload_hash": suggestion["payload_hash"]})
+    assert made.status_code == 200
+    assert made.json()["status"] == "proposed"
+    assert client.get("/api/v1/actions").json()["actions"][0]["id"] == made.json()["id"]
+
+
+@pytest.mark.ac("AC-INV-05")
+def test_anyone_may_approve_a_dry_run_and_it_changes_nothing_real(
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path
+) -> None:
+    sink = FakeIssues()
+    client = act_client(port, falkordb, tmp_path, sink=sink)
+    action_id = client.post(
+        "/api/v1/actions", json={"tenant": "apex", "payload_hash": first_suggestion(client)["payload_hash"]}
+    ).json()["id"]
+    done = client.post(f"/api/v1/actions/{action_id}/approve", json={"mode": "dry-run"}).json()
+    assert (done["status"], done["mode"]) == ("executed", "dry-run")
+    assert done["result"]["dry_run"] is True
+    assert sink.calls == 0
+    assert client.post(f"/api/v1/actions/{action_id}/approve", json={"mode": "dry-run"}).status_code == 409
+
+
+@pytest.mark.ac("AC-INV-05")
+def test_real_execution_needs_the_operator_key_and_a_configured_sink(
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path
+) -> None:
+    sink = FakeIssues()
+    client = act_client(port, falkordb, tmp_path, sink=sink)
+    payload = first_suggestion(client)["payload_hash"]
+    action_id = client.post("/api/v1/actions", json={"tenant": "apex", "payload_hash": payload}).json()["id"]
+    url = f"/api/v1/actions/{action_id}/approve"
+    assert client.post(url, json={"mode": "real"}).status_code == 403
+    assert client.post(url, json={"mode": "real"}, headers={"X-Approver-Key": "wrong"}).status_code == 403
+    assert sink.calls == 0
+    done = client.post(url, json={"mode": "real"}, headers={"X-Approver-Key": "s3cret"}).json()
+    assert (done["status"], done["approver"]) == ("executed", "operator")
+    assert done["result"]["url"] == "https://github.com/o/r/issues/9"
+    assert sink.calls == 1
+
+
+def test_real_execution_is_unavailable_when_no_sink_is_configured(
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path
+) -> None:
+    client = act_client(port, falkordb, tmp_path, sink=None)
+    action_id = client.post(
+        "/api/v1/actions", json={"tenant": "apex", "payload_hash": first_suggestion(client)["payload_hash"]}
+    ).json()["id"]
+    out = client.post(
+        f"/api/v1/actions/{action_id}/approve", json={"mode": "real"}, headers={"X-Approver-Key": "s3cret"}
+    )
+    assert out.status_code == 503
+
+
+def test_an_unset_operator_key_disables_real_execution_entirely(
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path
+) -> None:
+    client = act_client(port, falkordb, tmp_path, approver_key="", sink=FakeIssues())
+    action_id = client.post(
+        "/api/v1/actions", json={"tenant": "apex", "payload_hash": first_suggestion(client)["payload_hash"]}
+    ).json()["id"]
+    out = client.post(f"/api/v1/actions/{action_id}/approve", json={"mode": "real"}, headers={"X-Approver-Key": ""})
+    assert out.status_code == 403
+
+
+def test_the_daily_cap_on_real_actions_is_a_429(port: ReadPort, falkordb: FalkorDB, tmp_path: Path) -> None:
+    client = act_client(port, falkordb, tmp_path, sink=FakeIssues())
+    found = client.get("/api/v1/actions/suggestions", params={"tenant": "apex"}).json()["suggestions"]
+    assert len(found) >= 2
+    codes = []
+    for suggestion in found[:2]:
+        action_id = client.post(
+            "/api/v1/actions", json={"tenant": "apex", "payload_hash": suggestion["payload_hash"]}
+        ).json()["id"]
+        out = client.post(
+            f"/api/v1/actions/{action_id}/approve", json={"mode": "real"}, headers={"X-Approver-Key": "s3cret"}
+        )
+        codes.append(out.status_code)
+    assert codes == [200, 429]

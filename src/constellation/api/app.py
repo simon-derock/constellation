@@ -1,3 +1,4 @@
+import hmac
 import json
 import threading
 import time
@@ -12,6 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
+from constellation.actions.sinks import DryRunSink, Sink
+from constellation.actions.store import ActionRecord, ActionStore, CapError
+from constellation.actions.suggest import suggestions_from_rows
 from constellation.agents.epistemic import LLM, Question
 from constellation.agents.llm import LLMError
 from constellation.agents.planner import solve
@@ -19,6 +23,7 @@ from constellation.agents.toolbox import Perspective, Toolbox
 from constellation.api.catalogue import prove
 from constellation.api.mcp import build_server
 from constellation.graph.read import ReadPort
+from constellation.memory.store import ConflictError, MemoryStore
 from constellation.proof import ProofQuery, replay
 
 
@@ -38,6 +43,9 @@ class Settings:
     published: Path
     asks_per_minute: int = 6
     asks_per_day: int = 200
+    # empty disables real execution entirely: only the public dry-run exists
+    approver_key: str = ""
+    real_actions_per_day: int = 3
 
 
 class Limiter:
@@ -79,6 +87,17 @@ class ProofQueryIn(BaseModel):
     sha256: Annotated[str, Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")]
 
 
+class ProposeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tenant: str = Field(min_length=1, max_length=40)
+    payload_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+
+
+class ApproveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["dry-run", "real"] = "dry-run"
+
+
 class ReplayRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tenant: str = Field(min_length=1, max_length=40)
@@ -90,7 +109,29 @@ def _caller(request: Request) -> str:
     return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
-def create_app(port: ReadPort, settings: Settings, llm_factory: Callable[[], LLM]) -> FastAPI:
+def _action_json(record: ActionRecord) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "kind": record.kind,
+        "title": record.title,
+        "body": record.body,
+        "status": record.status,
+        "approver": record.approver,
+        "mode": record.mode,
+        "result": record.result,
+        "evidence": record.evidence,
+        "created": record.created,
+    }
+
+
+def create_app(
+    port: ReadPort,
+    settings: Settings,
+    llm_factory: Callable[[], LLM],
+    memory: MemoryStore | None = None,
+    real_sink: Sink | None = None,
+    repo: str = "",
+) -> FastAPI:
     default = next(iter(settings.tenants.values()))
     mcp_app = build_server(port, default.graph).http_app(path="/")
     app = FastAPI(title="Constellation", version="0.1.0", lifespan=mcp_app.lifespan)
@@ -215,6 +256,73 @@ def create_app(port: ReadPort, settings: Settings, llm_factory: Callable[[], LLM
     def scoreboard() -> dict[str, Any]:
         runs = [json.loads(p.read_text()) for p in sorted(settings.published.glob("*.summary.json"))]
         return {"runs": runs}
+
+    actions_store = ActionStore(memory) if memory is not None else None
+    action_limiter = Limiter(10, 300)
+
+    def suggestions_for(tenant: Tenant) -> list[dict[str, Any]]:
+        proof = prove(port, tenant.graph, "ownership_all", {})
+        columns = [str(c) for c in proof["columns"]]
+        domains: dict[str, list[dict[str, Any]]] = {}
+        for row in proof["rows"]:
+            record = dict(zip(columns, row, strict=True))
+            domains.setdefault(str(record.pop("domain")), []).append(record)
+        evidence = [{"name": "ownership_all", "params": {}, "sha256": str(proof["sha256"])}]
+        return [
+            {"kind": s.kind, "title": s.title, "body": s.body, "payload_hash": s.payload_hash, "evidence": evidence}
+            for s in suggestions_from_rows(domains, str(proof["sha256"]))
+        ]
+
+    def store() -> ActionStore:
+        if actions_store is None:
+            raise HTTPException(503, "actions are not enabled on this server")
+        return actions_store
+
+    @app.get("/api/v1/actions/suggestions")
+    def action_suggestions(tenant: str) -> dict[str, Any]:
+        return {"suggestions": suggestions_for(tenant_of(tenant))}
+
+    @app.get("/api/v1/actions")
+    def action_list() -> dict[str, Any]:
+        return {"actions": [_action_json(a) for a in store().recent()]}
+
+    @app.post("/api/v1/actions")
+    def action_propose(body: ProposeRequest, request: Request) -> dict[str, Any]:
+        # a caller may only propose what the server itself derived from the graph, never a payload of their choosing
+        derived = suggestions_for(tenant_of(body.tenant))
+        chosen = next((s for s in derived if s["payload_hash"] == body.payload_hash), None)
+        if chosen is None:
+            raise HTTPException(422, "that is not a suggestion this server derived")
+        if not action_limiter.allow(_caller(request)):
+            raise HTTPException(429, "rate limit reached; try again shortly")
+        return _action_json(store().propose(chosen["kind"], chosen["title"], chosen["body"], chosen["evidence"]))
+
+    def operator(request: Request) -> bool:
+        supplied = request.headers.get("x-approver-key", "")
+        return bool(settings.approver_key) and hmac.compare_digest(supplied.encode(), settings.approver_key.encode())
+
+    @app.post("/api/v1/actions/{action_id}/approve")
+    def action_approve(action_id: str, body: ApproveRequest, request: Request) -> dict[str, Any]:
+        actions = store()
+        sink: Sink
+        if body.mode == "real":
+            if not operator(request):
+                raise HTTPException(403, "real actions need the operator key")
+            if real_sink is None:
+                raise HTTPException(503, "real actions are not configured on this server")
+            approver, sink = "operator", real_sink
+        else:
+            approver, sink = "public demo (dry run)", DryRunSink(repo or "owner/repo")
+        try:
+            actions.approve(action_id, approver)
+            record = actions.execute(action_id, sink, mode=body.mode, daily_cap=settings.real_actions_per_day)
+        except KeyError as err:
+            raise HTTPException(404, "unknown action") from err
+        except CapError as err:
+            raise HTTPException(429, str(err)) from err
+        except ConflictError as err:
+            raise HTTPException(409, "this action was already decided") from err
+        return _action_json(record)
 
     app.mount("/mcp", mcp_app)
     return app

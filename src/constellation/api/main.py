@@ -7,11 +7,13 @@ import uvicorn
 from falkordb import FalkorDB
 from fastapi import FastAPI
 
+from constellation.actions.sinks import GitHubIssueSink, Sink
 from constellation.agents.epistemic import LLM
 from constellation.agents.llm import LLMError, ModelLock, WorkersAI
 from constellation.api.app import Settings, Tenant, create_app
 from constellation.brain.roles import roles_from_config
 from constellation.graph.read import ReadPort
+from constellation.memory.store import MemoryStore
 
 # https only, plus localhost for development; a wildcard would let any page call the API with the visitor's network
 _ORIGIN = re.compile(r"https://[a-z0-9.-]+(:\d+)?|http://localhost(:\d+)?")
@@ -33,7 +35,17 @@ def settings_from_env(env: Mapping[str, str]) -> Settings:
         published=Path(env.get("PUBLISHED_DIR", "results/published")),
         asks_per_minute=int(env.get("ASKS_PER_MINUTE", "6")),
         asks_per_day=int(env.get("ASKS_PER_DAY", "150")),
+        approver_key=env.get("APPROVER_KEY", ""),
+        real_actions_per_day=int(env.get("REAL_ACTIONS_PER_DAY", "3")),
     )
+
+
+def real_sink_from_env(env: Mapping[str, str]) -> Sink | None:
+    # real execution needs both halves: someone who may approve it, and a token that may file the issue
+    token, key = env.get("GITHUB_ACTIONS_TOKEN"), env.get("APPROVER_KEY")
+    if not token or not key:
+        return None
+    return GitHubIssueSink(env.get("ACTIONS_REPO", "simon-derock/constellation"), token)
 
 
 def _llm_factory(env: Mapping[str, str]) -> Callable[[], LLM]:
@@ -50,8 +62,15 @@ def _llm_factory(env: Mapping[str, str]) -> Callable[[], LLM]:
 
 def create() -> FastAPI:
     env = os.environ
-    port = ReadPort(FalkorDB(host=env.get("FALKORDB_HOST", "localhost"), port=int(env.get("FALKORDB_PORT", "6379"))))
-    return create_app(port, settings_from_env(env), llm_factory=_llm_factory(env))
+    db = FalkorDB(host=env.get("FALKORDB_HOST", "localhost"), port=int(env.get("FALKORDB_PORT", "6379")))
+    return create_app(
+        ReadPort(db),
+        settings_from_env(env),
+        llm_factory=_llm_factory(env),
+        memory=MemoryStore(db, tenant="apex"),
+        real_sink=real_sink_from_env(env),
+        repo=env.get("ACTIONS_REPO", "simon-derock/constellation"),
+    )
 
 
 if __name__ == "__main__":
