@@ -9,7 +9,14 @@ subject="$1"; shift
 body=()
 while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do body+=(-m "$1"); shift; done
 [ "${1:-}" = "--" ] && shift
-scripts/gate.sh > /dev/null
+log=$(mktemp)
+if ! scripts/gate.sh > "$log" 2>&1; then
+  # a failed gate says why, in full: a silent refusal costs more than the failure
+  tail -60 "$log" >&2
+  rm -f "$log"
+  exit 1
+fi
+rm -f "$log"
 git add -- "$@"
 git commit -q -m "$subject" "${body[@]}"
 git push -q origin main
