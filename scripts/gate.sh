@@ -3,8 +3,9 @@
 set -euo pipefail
 uv run ruff check
 uv run ruff format --check
-uv run mypy src tests
+uv run mypy src tests tools
 uv run pytest "$@"
 uv run vulture
 uv run bandit -q -r src
 uv run deptry src
+uv run python tools/traceability.py

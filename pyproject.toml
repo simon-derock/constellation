@@ -53,5 +53,5 @@ markers = [
 ]
 
 [tool.vulture]
-paths = ["src"]
+paths = ["src", "tools"]
 min_confidence = 80
