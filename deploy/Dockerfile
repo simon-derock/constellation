@@ -4,8 +4,8 @@ FROM falkordb/falkordb:v4.22.1@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de03
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR=/opt/python UV_PROJECT_ENVIRONMENT=/opt/venv UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
-RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin app \
- && mkdir -p /data && chown app /data
+# the base image already ships an unprivileged `redis` user (uid 999); both processes run as it, never as root
+RUN mkdir -p /data && chown redis /data
 
 WORKDIR /app
 COPY pyproject.toml uv.lock .python-version README.md ./
