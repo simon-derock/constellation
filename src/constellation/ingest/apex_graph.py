@@ -7,6 +7,7 @@ from constellation.brain.access import (
     event_artifacts,
 )
 from constellation.brain.causality import CausalEdge
+from constellation.brain.escalation import Chain
 from constellation.brain.ownership import OwnershipFact
 from constellation.domain.ids import entity_id
 from constellation.graph.catalogue import cypher
@@ -37,6 +38,9 @@ MERGE (x:Expectation {key: r.key}) SET x.response_type = r.response_type, x.resp
 x.search_space = r.search_space MERGE (t)-[:EXPECTS]->(x)"""
 _MET_BY = """UNWIND $rows AS r MATCH (x:Expectation {key: r.key}), (e:Event {eid: r.response})
 MERGE (x)-[:MET_BY]->(e)"""
+
+_ESCALATES = """UNWIND $rows AS r MERGE (a:Person {name: r.src}) MERGE (b:Person {name: r.dst})
+MERGE (a)-[h:ESCALATED_TO {eid: r.eid, ord: r.ord}]->(b) SET h.day = r.day"""
 
 _OWNS = """UNWIND $rows AS r MERGE (p:Person {name: r.owner}) MERGE (d:Domain {name: r.domain})
 MERGE (p)-[o:OWNS {from: r.from}]->(d)
@@ -174,3 +178,14 @@ def load_expectations(port: WritePort, graph: str, found: list[Expectation]) -> 
     ]
     port.merge(graph, _EXPECTS, rows)
     port.merge(graph, _MET_BY, [r for r in rows if r["response"] is not None])
+
+
+def load_escalations(port: WritePort, graph: str, chains: list[Chain]) -> None:
+    # one edge per hop, keyed by the observing event and hop order, so a chain can be replayed in sequence
+    port.ensure_index(graph, "Person", "name")
+    rows = [
+        {"src": src, "dst": dst, "eid": c.evidence, "ord": i, "day": c.day}
+        for c in chains
+        for i, (src, dst) in enumerate(zip(c.path, c.path[1:], strict=False))
+    ]
+    port.merge(graph, _ESCALATES, rows)

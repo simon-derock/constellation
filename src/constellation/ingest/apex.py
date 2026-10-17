@@ -6,6 +6,7 @@ import polars as pl
 import yaml
 
 from constellation.brain.access import SimEvent
+from constellation.brain.escalation import Chain, chain_from_facts
 from constellation.brain.ownership import Claim, Departure, RegistryEntry
 
 
@@ -143,3 +144,10 @@ def raw_events(corpus: Path) -> list[RawEvent]:
         )
         for row in frame.iter_rows(named=True)
     ]
+
+
+def escalation_chains(corpus: Path) -> list[Chain]:
+    frame = pl.read_parquet(corpus, columns=["doc_id", "doc_type", "day", "facts"])
+    rows = frame.filter(pl.col("doc_type") == "escalation_chain").sort("day").iter_rows(named=True)
+    chains = (chain_from_facts(_json_dict(r["facts"]), r["day"], r["doc_id"]) for r in rows)
+    return [c for c in chains if c is not None]
