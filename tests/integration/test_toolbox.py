@@ -142,3 +142,11 @@ def test_people_linked_through_a_shared_artifact_rank_an_event_without_excluding
     # ranked: events that reach Jax directly or through an artifact come before events that do not reach him
     reach = [bool(r["via_artifacts"]) or "Jax" in str(r["actors"]) for r in rows]
     assert reach == sorted(reach, reverse=True)
+
+
+def test_the_event_vocabulary_is_read_from_the_graph_and_not_recorded(port: ReadPort) -> None:
+    tools = Toolbox(port, GRAPH)
+    kinds = tools.event_types()
+    assert {"incident_opened", "knowledge_gap_detected", "design_discussion"} <= set(kinds)
+    assert kinds == sorted(kinds)
+    assert tools.calls == []

@@ -69,6 +69,10 @@ class Toolbox:
         # the cone the tools enforce, exposed so scoring judges against the same boundary
         return self._cone()[0]
 
+    def event_types(self) -> list[str]:
+        # vocabulary, not evidence: it reveals no event or artifact, so it is not a trajectory step
+        return [str(r[0]) for r in self._run("event_types", {}).rows]
+
     def find_events(self, day: int, event_type: str = "", actors: Sequence[str] = ()) -> list[dict[str, Value]]:
         t0 = time.perf_counter()
         args = {"day": day, "event_type": event_type, "actors": list(actors)}
