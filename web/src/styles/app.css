@@ -539,3 +539,72 @@ td {
   font-variant-numeric: tabular-nums;
   font-weight: 650;
 }
+
+/* actions */
+.page > h2 {
+  margin-top: 1.6em;
+  font-size: var(--step-1);
+}
+.actions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-width: 78ch;
+}
+.actions li {
+  padding: 18px 0;
+  border-top: 1px solid var(--rule);
+}
+.actions h3 {
+  font-size: var(--step-0);
+  margin: 0 0 8px;
+  font-weight: 650;
+}
+.actions .body {
+  font-family: var(--font-doc);
+  white-space: pre-wrap;
+  margin: 0 0 12px;
+  color: var(--ink-2);
+}
+.status {
+  margin: 0 0 6px;
+}
+.pill {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: var(--step--1);
+  font-weight: 650;
+  border: 1px solid var(--rule);
+}
+.pill.proposed {
+  color: var(--stale);
+  border-color: var(--stale);
+}
+.pill.executed {
+  color: var(--verified);
+  border-color: var(--verified);
+}
+.pill.failed,
+.pill.rejected {
+  color: var(--mismatch);
+  border-color: var(--mismatch);
+}
+.operator {
+  margin-top: 40px;
+  max-width: 40ch;
+}
+.operator summary {
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.operator input {
+  width: 100%;
+  margin-top: 6px;
+  font: inherit;
+  padding: 8px 10px;
+  background: var(--sheet);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}

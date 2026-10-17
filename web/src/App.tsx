@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AsOfProvider } from "./asof";
 import { TimeRail } from "./components/TimeRail";
+import { ActionsView } from "./views/ActionsView";
 import { AskView } from "./views/AskView";
 import { OwnershipView } from "./views/OwnershipView";
 import { ScoreboardView } from "./views/ScoreboardView";
@@ -8,6 +9,7 @@ import { ScoreboardView } from "./views/ScoreboardView";
 const VIEWS = [
   { id: "ask", label: "Ask", rail: true, view: <AskView /> },
   { id: "ownership", label: "Ownership", rail: true, view: <OwnershipView /> },
+  { id: "act", label: "Act", rail: false, view: <ActionsView /> },
   { id: "scoreboard", label: "Scoreboard", rail: false, view: <ScoreboardView /> },
 ] as const;
 

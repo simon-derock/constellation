@@ -37,3 +37,35 @@ describe("api errors", () => {
     await expect(ask(request)).rejects.toMatchObject({ status: 0, message: expect.stringContaining("reach") });
   });
 });
+
+describe("actions api", () => {
+  it("says what a refused operator key means in plain words", async () => {
+    reply(403, { detail: "real actions need the operator key" });
+    const { approveAction } = await import("./api");
+    await expect(approveAction("a1", "real", "wrong")).rejects.toMatchObject({
+      status: 403,
+      message: expect.stringContaining("operator key"),
+    });
+  });
+
+  it("explains a decided action as already decided", async () => {
+    reply(409, { detail: "this action was already decided" });
+    const { approveAction } = await import("./api");
+    await expect(approveAction("a1", "dry-run")).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("already decided"),
+    });
+  });
+
+  it("sends the operator key only for real approvals, and never in the body", async () => {
+    const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: "a1", status: "executed" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetcher);
+    const { approveAction } = await import("./api");
+    await approveAction("a1", "dry-run", "ignored");
+    await approveAction("a1", "real", "s3cret");
+    const [dry, real] = fetcher.mock.calls.map((call) => call[1]);
+    expect((dry?.headers as Record<string, string>)["x-approver-key"]).toBeUndefined();
+    expect((real?.headers as Record<string, string>)["x-approver-key"]).toBe("s3cret");
+    expect(String(real?.body)).not.toContain("s3cret");
+  });
+});

@@ -49,6 +49,27 @@ export interface RunSummary {
   ledger?: string;
 }
 
+export interface Suggestion {
+  kind: string;
+  title: string;
+  body: string;
+  payload_hash: string;
+  evidence: ProofQuery[];
+}
+
+export interface ActionRecord {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  status: "proposed" | "approved" | "rejected" | "executing" | "executed" | "failed";
+  approver: string | null;
+  mode: "dry-run" | "real" | null;
+  result: Record<string, unknown> | null;
+  evidence: ProofQuery[];
+  created: string;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -62,6 +83,8 @@ const base = import.meta.env.VITE_API_URL ?? "";
 
 // what a person should read for each failure; the server's own sentence is kept when it is already plain
 function explain(status: number, detail: string): string {
+  if (status === 403) return "That needs the operator key, and the key was not accepted.";
+  if (status === 409) return "This action was already decided, so it cannot be decided again.";
   if (status === 429) return "Too many questions in a short time. Please wait a moment and ask again.";
   if (status === 503 && detail) return detail;
   if (status === 422) return `That could not be asked: ${detail || "the question was not accepted"}.`;
@@ -99,3 +122,20 @@ export const ownership = (tenant: string) =>
     `/api/v1/ownership?tenant=${encodeURIComponent(tenant)}`,
   );
 export const scoreboard = () => request<{ runs: RunSummary[] }>("/api/v1/scoreboard");
+
+export const suggestions = (tenant: string) =>
+  request<{ suggestions: Suggestion[] }>(`/api/v1/actions/suggestions?tenant=${encodeURIComponent(tenant)}`);
+export const actionList = () => request<{ actions: ActionRecord[] }>("/api/v1/actions");
+export const proposeAction = (tenant: string, payloadHash: string) =>
+  request<ActionRecord>("/api/v1/actions", post({ tenant, payload_hash: payloadHash }));
+
+// the operator key travels as a header and only for real approvals; a dry run never needs it
+export const approveAction = (id: string, mode: "dry-run" | "real", operatorKey?: string) =>
+  request<ActionRecord>(`/api/v1/actions/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(mode === "real" && operatorKey ? { "x-approver-key": operatorKey } : {}),
+    },
+    body: JSON.stringify({ mode }),
+  });
