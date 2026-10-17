@@ -93,3 +93,10 @@ def test_every_call_is_recorded_with_its_proofs(port: ReadPort) -> None:
     tools.causal_links("EVT-8-incident_opened-1219")
     assert [c.tool for c in tools.calls] == ["event_artifacts", "causal_links"]
     assert all(len(p) == 64 for c in tools.calls for p in c.proofs)
+
+
+def test_dead_ends_are_marked_so_recovery_can_be_scored(port: ReadPort) -> None:
+    tools = Toolbox(port, GRAPH)
+    tools.find_events(8, "no_such_event_type")
+    tools.find_events(8, "incident_opened")
+    assert [c.empty for c in tools.calls] == [True, False]

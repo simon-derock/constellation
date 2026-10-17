@@ -16,6 +16,8 @@ class ToolRecord:
     result_types: tuple[str, ...]
     proofs: tuple[str, ...]
     latency_ms: float
+    # a dead end: the call found nothing to act on, which the benchmark scores as a recovery opportunity
+    empty: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,9 +46,10 @@ class Toolbox:
         types: Sequence[str],
         proofs: Sequence[str],
         t0: float,
+        empty: bool,
     ) -> None:
         latency = (time.perf_counter() - t0) * 1_000
-        self.calls.append(ToolRecord(tool, dict(args), tuple(ids), tuple(types), tuple(proofs), latency))
+        self.calls.append(ToolRecord(tool, dict(args), tuple(ids), tuple(types), tuple(proofs), latency, empty))
 
     def _required_perspective(self) -> Perspective:
         # a guard, not an assert: it must hold under python -O too
@@ -68,7 +71,7 @@ class Toolbox:
         result = self._run("find_events", args)
         rows = [dict(zip(result.columns, row, strict=True)) for row in result.rows]
         # events are not artifacts: linking an event reveals no artifact content
-        self._record("find_events", args, [], [], [result.sha256], t0)
+        self._record("find_events", args, [], [], [result.sha256], t0, empty=not rows)
         return rows
 
     def event_artifacts(self, event: str) -> list[dict[str, Value]]:
@@ -87,6 +90,7 @@ class Toolbox:
             [str(r["key"]) for r in rows],
             proofs,
             t0,
+            empty=not rows,
         )
         return rows
 
@@ -109,14 +113,16 @@ class Toolbox:
         known = not missed or bool(met) or bool(published)
         evidence = sorted((made & cone) | met)
         proofs = [cone_proof, produced.sha256, info.sha256, shared.sha256]
-        self._record("could_have_known", {"event": event}, evidence, ["artifact"] * len(evidence), proofs, t0)
+        self._record(
+            "could_have_known", {"event": event}, evidence, ["artifact"] * len(evidence), proofs, t0, empty=False
+        )
         return {"could_actor_have_known": known, "evidence_artifacts": list(evidence), "missed_count": len(missed)}
 
     def causal_links(self, event: str) -> list[dict[str, Value]]:
         t0 = time.perf_counter()
         result = self._run("causal_links", {"event": event})
         rows = [dict(zip(result.columns, row, strict=True)) for row in result.rows]
-        self._record("causal_links", {"event": event}, [], [], [result.sha256], t0)
+        self._record("causal_links", {"event": event}, [], [], [result.sha256], t0, empty=not rows)
         return rows
 
     def counterfactual(self, cause: str, effect: str, mechanism: str) -> dict[str, Value]:
@@ -125,7 +131,7 @@ class Toolbox:
         result = self._run("counterfactual", args)
         linked, alternatives = result.rows[0] if result.rows else (False, [])
         alts = [str(a) for a in alternatives] if isinstance(alternatives, list) else []
-        self._record("counterfactual", args, [], [], [result.sha256], t0)
+        self._record("counterfactual", args, [], [], [result.sha256], t0, empty=not linked)
         return {"linked": linked, "outcome_changed": bool(linked) and not alts, "alternative_causes": list(alts)}
 
     def absence(self, trigger: str, response_type: str) -> dict[str, Value]:
@@ -133,11 +139,11 @@ class Toolbox:
         args = {"trigger": trigger, "response_type": response_type}
         result = self._run("absence", args)
         if not result.rows:
-            self._record("absence", args, [], [], [result.sha256], t0)
+            self._record("absence", args, [], [], [result.sha256], t0, empty=True)
             return {"known_expectation": False, "exists": None, "searched": []}
         responded, response_event, searched = result.rows[0]
         space = [str(s) for s in searched] if isinstance(searched, list) else []
-        self._record("absence", args, space, ["artifact"] * len(space), [result.sha256], t0)
+        self._record("absence", args, space, ["artifact"] * len(space), [result.sha256], t0, empty=False)
         return {
             "known_expectation": True,
             "exists": responded,
