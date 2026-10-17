@@ -60,6 +60,22 @@ def run_one(
     }
 
 
+def load_completed(ledger: Path) -> list[dict[str, Any]]:
+    # a truncated last line is what a killed run leaves behind; it is dropped, never trusted
+    rows: list[dict[str, Any]] = []
+    for line in ledger.read_text().splitlines():
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            break
+    return rows
+
+
+def remaining(questions: Sequence[Mapping[str, Any]], done: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    finished = {r["question_id"] for r in done}
+    return [q for q in questions if q["question_id"] not in finished]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="run EpistemicBench on Constellation and score it with the official scorers"
@@ -72,6 +88,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--only", nargs="*", default=[], help="question ids to run")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--out", type=Path, default=Path("results/raw"))
+    parser.add_argument("--resume", type=Path, help="continue an interrupted run from its ledger")
     args = parser.parse_args(argv)
     lock = ModelLock(model=args.model, temperature=0.0, max_tokens=1_024)
     llm = WorkersAI(os.environ["CLOUDFLARE_ACCOUNT_ID"], os.environ["CLOUDFLARE_API_TOKEN"], lock)
@@ -84,9 +101,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         questions = questions[: args.limit]
     args.out.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%dT%H%M%S")
-    ledger = args.out / f"epistemic-{stamp}.jsonl"
-    rows = []
+    ledger = args.resume or args.out / f"epistemic-{stamp}.jsonl"
+    rows = load_completed(ledger) if args.resume else []
+    questions = remaining(questions, rows)
     with ledger.open("w") as out:
+        # rewritten from the good rows only: a killed run's torn last line must not swallow the next row
+        for kept in rows:
+            out.write(json.dumps(kept) + "\n")
+        out.flush()
         for raw in questions:
             row = run_one(llm, port, args.graph, raw, roles)
             rows.append(row)
@@ -95,7 +117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             out.flush()
             print(f"{row['question_id'][:60]:60} answer={row['answer_correct']!s:5} combined={row['combined_score']}")
     summary = {"model_lock": lock.sha256, "model": lock.model, "ledger": str(ledger), **summarize(rows)}
-    (args.out / f"epistemic-{stamp}.summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    ledger.with_suffix(".summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
     return 0
 
