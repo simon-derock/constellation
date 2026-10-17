@@ -47,8 +47,8 @@ extend-exclude = ["src/constellation/_vendor"]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "PT", "N", "C4", "PERF", "PIE", "RET", "TID"]
 
 [tool.ruff.lint.per-file-ignores]
-# asserts are the test language
-"tests/**" = ["S101"]
+# asserts are the test language; seeded sampling in tests is reproducibility, not cryptography
+"tests/**" = ["S101", "S311"]
 
 [tool.mypy]
 python_version = "3.13"

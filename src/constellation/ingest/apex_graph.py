@@ -21,7 +21,7 @@ WITH ro, r UNWIND r.subsystems AS s MERGE (sub:Subsystem {name: s}) MERGE (ro)-[
 _PEOPLE = """UNWIND $rows AS r MERGE (p:Person {name: r.name}) SET p.id = r.id, p.kind = r.kind
 WITH p, r WHERE r.role IS NOT NULL MATCH (ro:Role {name: r.role}) MERGE (p)-[:HAS_ROLE]->(ro)"""
 _EVENTS = """UNWIND $rows AS r MERGE (e:Event {eid: r.eid})
-SET e.id = r.id, e.day = r.day, e.type = r.type, e.broadcast = r.broadcast"""
+SET e.id = r.id, e.day = r.day, e.type = r.type, e.broadcast = r.broadcast, e.spawned_doc = r.spawned_doc"""
 _INVOLVED = """UNWIND $rows AS r MATCH (p:Person {name: r.actor}), (e:Event {eid: r.eid})
 MERGE (p)-[:INVOLVED_IN]->(e)"""
 _ARTIFACTS = """UNWIND $rows AS r MERGE (a:Artifact {doc_id: r.doc_id}) SET a.id = r.id, a.born = r.born"""
@@ -88,6 +88,7 @@ def load_into(port: WritePort, graph: str, apex: ApexCorpus) -> None:
                 "day": e.day,
                 "type": e.type,
                 "broadcast": sorted(BROADCAST_CONFIG.get(e.type, frozenset())),
+                "spawned_doc": e.spawned_doc,
             }
             for e in apex.events
         ],
