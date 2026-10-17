@@ -55,17 +55,15 @@ flowchart TB
   end
 
   subgraph EXT["Free external services"]
-    WAI["Workers AI<br/>live LLM · speech-to-text"]:::ext
+    WAI["Workers AI<br/>live LLM · Qwen3-Embedding queries<br/>reranker · speech-to-text"]:::ext
     CO["Cohere<br/>second-model runs · judge"]:::ext
-    ENC["Encoder Space · HF ZeroGPU<br/>voyage-4-nano queries · reranker"]:::ext
-    VOY["Voyage API · voyage-4-lite<br/>same embedding space · fallback"]:::ext
     GH["GitHub · FalkorDB org<br/>live tenant source"]:::ext
     SNAP[("GitHub Releases<br/>snapshots + manifests")]:::store
     JRN[("Cloudflare D1<br/>memory journal")]:::store
   end
 
   subgraph BATCH["Kaggle · batch factory · never on the request path"]
-    JOBS["chunk · voyage-4-nano embed · bm25 · extract<br/>speech twin · EmbeddingGemma 2 voice · eval-batch"]:::batch
+    JOBS["chunk · Qwen3-Embedding · bm25 · extract<br/>speech twin · EmbeddingGemma 2 voice · eval-batch"]:::batch
   end
 
   subgraph SCHED["Schedulers"]
@@ -85,8 +83,7 @@ flowchart TB
   MEM -->|"append"| JRN
   AG -->|"locked model"| WAI
   AG -.->|"comparison runs"| CO
-  RT -->|"query vector · rerank"| ENC
-  RT -.->|"fallback"| VOY
+  RT -->|"query vector · rerank"| WAI
   API -->|"ETag sync"| GH
   JOBS -->|"sharded parquet + sha256"| SNAP
   SNAP -->|"restore on boot"| FDB

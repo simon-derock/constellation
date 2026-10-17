@@ -273,17 +273,15 @@ flowchart TB
   end
 
   subgraph EXT["Free external services"]
-    WAI["Workers AI<br/>live LLM · speech-to-text"]:::ext
+    WAI["Workers AI<br/>live LLM · Qwen3-Embedding queries<br/>reranker · speech-to-text"]:::ext
     CO["Cohere<br/>second-model runs · judge"]:::ext
-    ENC["Encoder Space · HF ZeroGPU<br/>voyage-4-nano queries · reranker"]:::ext
-    VOY["Voyage API · voyage-4-lite<br/>same embedding space · fallback"]:::ext
     GH["GitHub · FalkorDB org<br/>live tenant source"]:::ext
     SNAP[("GitHub Releases<br/>snapshots + manifests")]:::store
     JRN[("Cloudflare D1<br/>memory journal")]:::store
   end
 
   subgraph BATCH["Kaggle · batch factory · never on the request path"]
-    JOBS["chunk · voyage-4-nano embed · bm25 · extract<br/>speech twin · EmbeddingGemma 2 voice · eval-batch"]:::batch
+    JOBS["chunk · Qwen3-Embedding · bm25 · extract<br/>speech twin · EmbeddingGemma 2 voice · eval-batch"]:::batch
   end
 
   subgraph SCHED["Schedulers"]
@@ -303,8 +301,7 @@ flowchart TB
   MEM -->|"append"| JRN
   AG -->|"locked model"| WAI
   AG -.->|"comparison runs"| CO
-  RT -->|"query vector · rerank"| ENC
-  RT -.->|"fallback"| VOY
+  RT -->|"query vector · rerank"| WAI
   API -->|"ETag sync"| GH
   JOBS -->|"sharded parquet + sha256"| SNAP
   SNAP -->|"restore on boot"| FDB
@@ -680,7 +677,7 @@ flowchart LR
 ```text
 query ─▶ principal bitmap (Redis BITOP over the principal's Spaces, as of D)
        ─▶ lexical  (FalkorDB full-text for Apex/live; BM25 sidecar for Redwood full text)
-       ─▶ dense    (FalkorDB vector index over voyage-4-nano vectors; query vector from the encoder Space)
+       ─▶ dense    (FalkorDB vector index over Qwen3-Embedding-0.6B vectors; query vector from Workers AI)
        ─▶ fusion   (reciprocal rank fusion, k=60; weights fixed by ablation, not tuned per question)
        ─▶ rerank   (open cross-encoder; kept only if its ablation wins; graph-resolved answers skip it)
        ─▶ graph expansion (NEXT neighbours, REPLIES_TO thread, Claim/Decision links) — every hop re-checked against the bitmap
@@ -908,10 +905,10 @@ All of this runs as batch work, never in the request path.
 | Answering and planning | An open-weights instruct model on Cloudflare Workers AI, for the live app and benchmark runs; the same weights self-hosted on Kaggle when a run exceeds the free daily quota. Model ID pinned by ADR-0004 | The same model for every call in a run |
 | Second model | Cohere Command (trial key, 1,000 calls a month) | A separate published run on Apex, never mixed with others |
 | Judge (only where a benchmark requires one) | The benchmark's own judge prompt. Cohere judges open-model answers, so judge and answerer never share a family | Second-judge agreement reported on a 10% sample |
-| Text embeddings | **voyage-4-nano** (Apache-2.0, 340M, 32k context, MRL 2048/1024/512/256, quantization-aware int8 and binary): documents on Kaggle, queries on the encoder Space. The Voyage 4 family shares one embedding space, so voyage-4-lite on the Voyage API is a drop-in query fallback | AC-MOD-01: runtimes with the same weights agree at cosine ≥ 0.999; the API fallback costs ≤ 1 point of Recall@10 on the Apex probe set |
-| Embedding bake-off | EmbeddingGemma 2 (text tower) against voyage-4-nano on Apex gold spans and Redwood `expected_doc_ids`; judge-free Recall@10 and MRR | Winner recorded by ADR; the other stays as a published ablation |
+| Text embeddings | **Qwen3-Embedding-0.6B** (Apache-2.0, 32k context, MRL 32–1024, instruction-aware): documents on Kaggle from the open weights, queries live on Workers AI (`@cf/qwen/qwen3-embedding-0.6b`). One set of weights, two runtimes, zero paid calls | AC-MOD-01: on the probe set, Recall@10 with Workers AI query vectors is within 0.5 points of Recall@10 with locally computed query vectors; mean cosine between the two is reported |
+| Embedding bake-off | Every open model that is also free on Workers AI: Qwen3-Embedding-0.6B, bge-m3 (MIT, 8k), EmbeddingGemma-300m. Scored on Apex gold spans and Redwood `expected_doc_ids` (judge-free Recall@10, MRR) | Winner recorded by ADR; whichever wins deploys the same way. The others stay as published ablations |
 | Voice | EmbeddingGemma 2 audio tower: speaker identity and voice codes | Batch only |
-| Reranker | Open cross-encoder on the encoder Space (candidates: Qwen3-Reranker-0.6B, bge-reranker-v2-m3, both Apache-2.0); Voyage `rerank-2.5-lite` as fallback | Kept only if the Kaggle ablation raises Recall@10 or answer accuracy; tier-1 graph answers skip it |
+| Reranker | `bge-reranker-base` (MIT): live on Workers AI (`@cf/baai/bge-reranker-base`), the same weights on Kaggle for benchmark runs | Kept only if the Kaggle ablation raises Recall@10 or answer accuracy; tier-1 graph answers skip it |
 | Bulk extraction | Self-hosted on batch compute | Redwood never leaves the self-hosted or no-training boundary |
 
 **Model lock.**
@@ -919,7 +916,7 @@ All of this runs as batch work, never in the request path.
 - At run start the provider, model and decoding parameters are locked and hashed into the `Run` node.
 - On a 429 response, retry the same model with backoff. Never switch model mid-run.
 
-**Free-tier quotas** are budgeted before every run and logged after it: Workers AI daily neurons, Cohere trial calls (1,000 a month across endpoints), Voyage tokens (200M free; 3 requests a minute without a card), ZeroGPU minutes (5 a day on a free account), Kaggle GPU hours.
+**Free-tier quotas** are budgeted before every run and logged after it: Workers AI daily neurons, Cohere trial calls (1,000 a month across endpoints), Workers AI embedding and rerank neurons (Qwen3-Embedding-0.6B costs about 1,075 neurons per million tokens, so the 10,000 free daily neurons cover about 9.3 million query tokens a day), Kaggle GPU hours.
 
 **Token accounting.**
 
@@ -1129,7 +1126,6 @@ Accessibility: WCAG 2.2 AA contrast, keyboard navigation, reduced-motion support
 | Web | Vercel Hobby | Static build on a global CDN. Custom domain by CNAME in the existing DNS zone. Rewrites `/api/*` and `/mcp` to the API, so the browser sees one origin. The site renders recorded results instantly, even while the API wakes |
 | API, MCP and FalkorDB | Render free web service: one Docker image built on the pinned FalkorDB image, with the API beside it under a two-process supervisor | 512 MB. Hosts Apex, the FalkorDB OSS live tenant and the memory graphs; a CI check fails if snapshots outgrow the budget. The schedulers keep it warm (750 free instance-hours cover one service for a month) |
 | Snapshots | GitHub Releases | Graph RDB snapshots and index shards with sha256 manifests, restored on boot (the free host has no persistent disk) |
-| Encoder Space | Hugging Face ZeroGPU Gradio Space (free accounts may host two) | Stateless: voyage-4-nano query encoder and the reranker, nothing else. The W0 probe decides CPU or GPU execution and logs quota use. The Voyage API is its fallback |
 | Memory journal | Cloudflare D1 | Append before acknowledge; replayed on boot ([SPEC:MEMORY]) |
 | Redwood (512k documents) | Kaggle and a stated reference machine | Too large for 512 MB. Published as recorded runs with proofs; `docker compose up` rebuilds it from the public dataset and replays any proof locally |
 | Batch compute | Kaggle ([SPEC:BATCH]) | Embeddings, speech, indexes, benchmark runs. Outputs are hash-manifested |
@@ -1141,12 +1137,12 @@ Accessibility: WCAG 2.2 AA contrast, keyboard navigation, reduced-motion support
 - **Render free:** 750 instance-hours per workspace per month, which covers one service for a 31-day month (744 h). It sleeps after 15 minutes without inbound requests and wakes in about a minute. It may restart at any time and has no persistent disk, hence snapshots and the journal. Exceeding the bandwidth allowance without a card suspends free services for the month, so the API serves JSON only; media and video come from CDNs.
 - **Keep-warm:** a Cloudflare Worker cron pings every 5 minutes (primary, punctual); GitHub Actions pings every 10 minutes as a backup, because scheduled workflows can run late under load.
 - **Vercel Hobby:** a static site never sleeps. Hobby cron runs at most once a day with ±59 minutes of precision, so it only triggers the nightly scoreboard.
-- **Encoder Space:** pinged on the same schedule as the API.
 
 **Rejected, with reason (ADR-0003, checked October 2026):**
 
 - **FalkorDB Cloud free tier:** 100 MB, stopped after one idle day, deleted after seven, no backups. Paid tiers start at 1 GB.
-- **Hugging Face Spaces as the API host:** Gradio and Docker Spaces now require a paid plan to create. Free accounts keep two ZeroGPU Gradio Spaces; one serves only the stateless encoder.
+- **Hugging Face Spaces:** Gradio and Docker Spaces now require a paid plan to create; ZeroGPU quotas (5 GPU minutes a day on a free account) are too thin for a request path.
+- **Hosted-only embedding APIs on the request path:** the Voyage API allows 3 requests a minute without a card; OpenRouter `:free` models allow 50 requests a day without purchased credits.
 - **Koyeb, Fly.io, Railway, hyperscaler trials:** a card is required, or the free compute expires.
 - **Coolify:** a strong self-hosting control plane, but it manages servers; it does not supply one. It remains an option for the reference machine.
 
@@ -1179,8 +1175,8 @@ Kaggle is the factory; the VM is the shop. Anything heavy, embarrassingly parall
 
 | Job | Accelerator | Produces |
 |---|---|---|
-| `embed-apex` | GPU | voyage-4-nano and EmbeddingGemma 2 chunk embeddings for Apex and the live tenant: the bake-off, plus the MRL and precision ablation (2048 → 256, float → binary) |
-| `embed-redwood` | GPU | voyage-4-nano embeddings over the title and leading window of all 511,962 documents |
+| `embed-apex` | GPU | Bake-off embeddings for Apex and the live tenant (Qwen3-Embedding-0.6B, bge-m3, EmbeddingGemma-300m), plus the MRL and precision ablation (1024 → 256, float → int8 → binary) |
+| `embed-redwood` | GPU | Embeddings from the bake-off winner over the title and leading window of all 511,962 documents |
 | `bm25-redwood` | CPU (high RAM) | The memory-mappable BM25 sidecar over full Redwood text |
 | `extract-redwood` | CPU, then GPU | Deterministic extraction everywhere; model extraction only on ambiguous spans; quote check on every edge |
 | `speech-twin` | GPU | Synthetic speech for 208 meetings → recognition → utterance spans → audio embeddings → Opus clips |
