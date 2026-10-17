@@ -1,7 +1,18 @@
+import re
 from collections.abc import Mapping, Sequence
 
 from falkordb import FalkorDB
 from redis.exceptions import ResponseError
+
+
+# Cypher cannot parameterise labels or property names; anything spliced into query text must match this
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+
+
+def safe_identifier(name: str) -> str:
+    if not _IDENTIFIER.fullmatch(name):
+        raise ValueError(f"unsafe Cypher identifier {name!r}")
+    return name
 
 
 class WritePort:
@@ -11,7 +22,8 @@ class WritePort:
 
     def ensure_index(self, graph: str, label: str, prop: str) -> None:
         try:
-            self._db.select_graph(graph).query(f"CREATE INDEX FOR (n:{label}) ON (n.{prop})")
+            index = f"CREATE INDEX FOR (n:{safe_identifier(label)}) ON (n.{safe_identifier(prop)})"
+            self._db.select_graph(graph).query(index)
         except ResponseError as err:
             # idempotent schema: an existing index is the desired state, anything else is a failure
             if "already indexed" not in str(err):
