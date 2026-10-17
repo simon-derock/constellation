@@ -1,0 +1,175 @@
+import json
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+import pytest
+from falkordb import FalkorDB
+from fastapi.testclient import TestClient
+
+from constellation.agents.llm import LLMError, Reply, Usage
+from constellation.api.app import Settings, Tenant, create_app
+from constellation.graph.read import ReadPort
+from constellation.ingest.build_apex import build
+
+pytestmark = pytest.mark.integration
+GRAPH = "brain:apex-api"
+ORIGIN = "https://constellation.example.org"
+
+
+class Scripted:
+    def __init__(self, replies: list[str]) -> None:
+        self.replies, self.calls = replies, 0
+        self.usage: list[Usage] = []
+
+    def chat(self, messages: Sequence[dict[str, Any]], tools: Sequence[dict[str, Any]]) -> Reply:
+        self.calls += 1
+        self.usage.append(Usage(prompt_tokens=120, completion_tokens=30, latency_ms=1.0))
+        body = self.replies.pop(0)
+        return Reply(body, (), {"role": "assistant", "content": body})
+
+
+PLAN = json.dumps(
+    {"day": 8, "event_type": "incident_opened", "people": ["Jax"], "target_type": "sf_deals_risk_flagged"}
+)
+PICK = json.dumps({"event": "EVT-8-incident_opened-1219"})
+
+
+@pytest.fixture(scope="module")
+def port(falkordb: FalkorDB) -> ReadPort:
+    if not Path("data/raw/apex").exists():
+        pytest.skip("pinned Apex data not fetched")
+    falkordb.select_graph(GRAPH).query("MATCH (n) DETACH DELETE n")
+    build(falkordb, GRAPH, Path("data/raw/apex"), Path("pins/datasets.json"))
+    return ReadPort(falkordb)
+
+
+def make_client(port: ReadPort, tmp_path: Path, llm: Scripted | None = None, asks_per_minute: int = 30) -> TestClient:
+    roles = {"Alex": "engineering_mobile", "Tom": "hr_ops"}
+    settings = Settings(
+        tenants={"apex": Tenant("apex", GRAPH, "Apex Athletics", roles)},
+        allowed_origins=(ORIGIN,),
+        published=tmp_path,
+        asks_per_minute=asks_per_minute,
+        asks_per_day=1_000,
+    )
+    scripted = llm or Scripted([PLAN, PICK, PICK])
+    return TestClient(create_app(port, settings, llm_factory=lambda: scripted))
+
+
+def test_health_and_readiness(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    assert client.get("/health").json() == {"status": "ok"}
+    ready = client.get("/ready")
+    assert ready.status_code == 200
+    assert ready.json()["tenants"]["apex"] > 10_000
+
+
+def test_every_response_carries_security_headers(port: ReadPort, tmp_path: Path) -> None:
+    headers = make_client(port, tmp_path).get("/health").headers
+    assert headers["x-content-type-options"] == "nosniff"
+    assert headers["x-frame-options"] == "DENY"
+    assert headers["referrer-policy"] == "no-referrer"
+
+
+def test_cors_admits_only_the_configured_origin(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    ok = client.options("/api/v1/ask", headers={"Origin": ORIGIN, "Access-Control-Request-Method": "POST"})
+    bad = client.options(
+        "/api/v1/ask", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"}
+    )
+    assert ok.headers.get("access-control-allow-origin") == ORIGIN
+    assert "access-control-allow-origin" not in bad.headers
+
+
+@pytest.mark.ac("AC-INV-03")
+def test_an_answer_carries_a_proof_that_replays(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    body = {
+        "tenant": "apex",
+        "kind": "SILENCE",
+        "question": "Was a risk flag raised after the Day 8 incident with Jax?",
+    }
+    got = client.post("/api/v1/ask", json=body)
+    assert got.status_code == 200, got.text
+    data = got.json()
+    assert data["answer"]["exists"] is False
+    assert data["proof"]["queries"]
+    assert data["trace"]["llm_calls"] == 1
+    assert data["trace"]["prompt_tokens"] == 120
+    replayed = client.post("/api/v1/replay", json={"tenant": "apex", "queries": data["proof"]["queries"]})
+    assert replayed.status_code == 200
+    assert replayed.json()["all_match"] is True
+
+
+@pytest.mark.ac("AC-INV-03")
+def test_a_tampered_proof_fails_replay(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    queries = [{"name": "event_types", "params": {}, "sha256": "0" * 64}]
+    out = client.post("/api/v1/replay", json={"tenant": "apex", "queries": queries})
+    assert out.status_code == 200
+    assert out.json()["all_match"] is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"tenant": "nope", "kind": "SILENCE", "question": "q"},
+        {"tenant": "apex", "kind": "OTHER", "question": "q"},
+        {"tenant": "apex", "kind": "SILENCE", "question": "x" * 601},
+        {"tenant": "apex", "kind": "SILENCE", "question": ""},
+        {"tenant": "apex", "kind": "PERSPECTIVE", "question": "q"},
+        {"tenant": "apex", "kind": "PERSPECTIVE", "question": "q", "actor": "Alex", "day": 10_000},
+        {"tenant": "apex", "kind": "PERSPECTIVE", "question": "q", "actor": "Stranger", "day": 5},
+    ],
+)
+def test_invalid_questions_are_refused_before_any_model_call(
+    port: ReadPort, tmp_path: Path, body: dict[str, Any]
+) -> None:
+    llm = Scripted([])
+    client = make_client(port, tmp_path, llm)
+    assert client.post("/api/v1/ask", json=body).status_code == 422
+    assert llm.calls == 0
+
+
+def test_the_rate_limit_stops_a_caller_before_the_model_is_touched(port: ReadPort, tmp_path: Path) -> None:
+    llm = Scripted([PLAN, PLAN, PLAN])
+    client = make_client(port, tmp_path, llm, asks_per_minute=2)
+    body = {"tenant": "apex", "kind": "SILENCE", "question": "Was a risk flag raised after the Day 8 incident?"}
+    assert [client.post("/api/v1/ask", json=body).status_code for _ in range(3)] == [200, 200, 429]
+    assert llm.calls == 2
+
+
+def test_the_scoreboard_lists_published_runs_only(port: ReadPort, tmp_path: Path) -> None:
+    (tmp_path / "epistemic-test.summary.json").write_text(json.dumps({"questions": 78, "combined_score": 0.5}))
+    (tmp_path / "ignored.txt").write_text("no")
+    runs = make_client(port, tmp_path).get("/api/v1/scoreboard").json()["runs"]
+    assert [r["questions"] for r in runs] == [78]
+
+
+def test_the_mcp_server_is_mounted_beside_the_api(port: ReadPort, tmp_path: Path) -> None:
+    app = create_app(
+        port,
+        Settings(tenants={"apex": Tenant("apex", GRAPH, "Apex", {})}, allowed_origins=(), published=tmp_path),
+        llm_factory=lambda: Scripted([]),
+    )
+    assert "/mcp" in {getattr(r, "path", "") for r in app.routes}
+
+
+class Failing:
+    def __init__(self) -> None:
+        self.usage: list[Usage] = []
+
+    def chat(self, messages: Sequence[dict[str, Any]], tools: Sequence[dict[str, Any]]) -> Reply:
+        raise LLMError("@cf/openai/gpt-oss-20b failed with HTTP 429: daily allocation used up")
+
+
+def test_an_unavailable_model_is_a_clean_503_that_leaks_no_detail(port: ReadPort, tmp_path: Path) -> None:
+    settings = Settings(
+        tenants={"apex": Tenant("apex", GRAPH, "Apex", {})}, allowed_origins=(), published=tmp_path, asks_per_minute=9
+    )
+    client = TestClient(create_app(port, settings, llm_factory=Failing))
+    body = {"tenant": "apex", "kind": "SILENCE", "question": "Was a postmortem written?"}
+    out = client.post("/api/v1/ask", json=body)
+    assert out.status_code == 503
+    assert out.json() == {"detail": "the model is unavailable right now; recorded runs are still browsable"}

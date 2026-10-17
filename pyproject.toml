@@ -7,6 +7,7 @@ license = "MIT"
 requires-python = ">=3.13"
 dependencies = [
     "falkordb>=1.8",
+    "fastapi>=0.115",
     "fastmcp>=2.12",
     "huggingface-hub>=0.35",
     "mcp>=2.3",
@@ -14,12 +15,14 @@ dependencies = [
     "pydantic>=2.11",
     "pyyaml>=6.0",
     "redis>=5",
+    "uvicorn>=0.34",
 ]
 
 [dependency-groups]
 dev = [
   "bandit>=1.8",
   "deptry>=0.23",
+  "httpx>=0.28",
   "hypothesis>=6.140",
   "mypy>=1.18",
   "pytest>=8.4",
