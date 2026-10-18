@@ -212,6 +212,34 @@ main[data-view="home"] {
     font-size: 6rem;
   }
 }
+.hackathon {
+  max-width: 40rem;
+  margin: 2rem auto 0;
+  padding: 1.1rem 1.4rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.hackathon p {
+  margin: 0.25rem 0 0;
+}
+.hackathon-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--ink);
+}
+.signature {
+  margin-top: 1.5rem !important;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.1rem;
+  letter-spacing: 0;
+  text-transform: none !important;
+  color: var(--ink-2);
+}
 .tagline {
   margin: 1.5rem 0 0;
   font-size: 0.875rem;

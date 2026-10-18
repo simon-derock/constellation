@@ -15,6 +15,15 @@ function show() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("HomeView", () => {
+  it("states the hackathon, the tracks, the deadline and the author", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
+    show();
+    expect(screen.getByText("Graph Hacks: Context for AI Agents")).toBeInTheDocument();
+    expect(screen.getByText(/Agents That Act on Connected Data/)).toBeInTheDocument();
+    expect(screen.getByText(/11:59 PM IST, 18 October 2026/)).toBeInTheDocument();
+    expect(screen.getByText("— Philip Simon Derock")).toBeInTheDocument();
+  });
+
   it("names the product, the promise and the way in", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
     show();

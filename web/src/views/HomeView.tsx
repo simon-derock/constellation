@@ -28,6 +28,16 @@ export function HomeView() {
           <p className="tagline rise" style={{ animationDelay: ".3s" }}>
             Every answer, with its proof.
           </p>
+          <aside className="hackathon rise" style={{ animationDelay: ".45s" }} aria-label="Graph Hacks">
+            <p className="hackathon-title">Graph Hacks: Context for AI Agents</p>
+            <p>
+              WeMakeDevs × FalkorDB · Entered in all three tracks: Agents That Act on Connected Data, Agent Memory and
+              Coordination, and Company Brain
+            </p>
+            <p>
+              FalkorDB is the primary graph database · Solo entry · Submissions close 11:59 PM IST, 18 October 2026
+            </p>
+          </aside>
         </div>
       </header>
 
@@ -81,7 +91,10 @@ export function HomeView() {
           </a>
         </section>
 
-        <footer className="colophon">Constellation · MMXXVI</footer>
+        <footer className="colophon">
+          <p>Constellation · MMXXVI</p>
+          <p className="signature">— Philip Simon Derock</p>
+        </footer>
       </div>
     </div>
   );
