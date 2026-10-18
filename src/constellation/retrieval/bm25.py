@@ -31,6 +31,7 @@ class Bm25Index:
     # Okapi BM25 over hashed unigrams: weights are precomputed per (document, term), so a query is a column sum
     def __init__(self, weights: sp.csc_matrix, n_features: int, avg_length: float) -> None:
         self._weights = weights
+        self._rows: sp.csr_matrix | None = None
         self._vec = _vectorizer(n_features)
         self.documents = int(weights.shape[0])
         self.avg_length = avg_length
@@ -65,7 +66,43 @@ class Bm25Index:
         terms = np.unique(self._vec.transform([query]).indices)
         if terms.size == 0:
             return []
-        scores = np.asarray(self._weights[:, terms].sum(axis=1)).ravel()
+        return self._rank(np.asarray(self._weights[:, terms].sum(axis=1)).ravel(), k)
+
+    def search_with_feedback(
+        self,
+        query: str,
+        k: int = 10,
+        feedback_docs: int = 8,
+        feedback_terms: int = 30,
+        weight: float = 0.5,
+    ) -> list[tuple[int, float]]:
+        # Rocchio-style pseudo-relevance feedback: the vocabulary of the first hits is added to the query, scaled so
+        # the query's own terms stay dominant. It reaches documents that describe the same thing in other words
+        if feedback_docs < 1 or feedback_terms < 1:
+            raise ValueError("feedback needs at least one document and one term")
+        terms = np.unique(self._vec.transform([query]).indices)
+        if terms.size == 0:
+            return []
+        first = np.asarray(self._weights[:, terms].sum(axis=1)).ravel()
+        if weight <= 0:
+            return self._rank(first, k)
+        top = [i for i, _ in self._rank(first, feedback_docs)]
+        if not top:
+            return []
+        if self._rows is None:
+            self._rows = self._weights.tocsr()
+        pooled = np.asarray(self._rows[top].sum(axis=0)).ravel()
+        pooled[terms] = 0.0
+        take = min(feedback_terms, int(np.count_nonzero(pooled)))
+        if take == 0:
+            return self._rank(first, k)
+        chosen = np.argpartition(-pooled, take - 1)[:take]
+        chosen = chosen[np.argsort(-pooled[chosen], kind="stable")]
+        scale = weight / float(pooled[chosen].max())
+        extra = np.asarray(self._weights[:, chosen] @ (pooled[chosen] * scale)).ravel()
+        return self._rank(first + extra, k)
+
+    def _rank(self, scores: np.ndarray, k: int) -> list[tuple[int, float]]:
         positive = np.flatnonzero(scores > 0)
         if positive.size == 0:
             return []

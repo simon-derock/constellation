@@ -57,3 +57,54 @@ def test_document_count_and_memory_are_reported() -> None:
     assert idx.documents == 5
     assert idx.nbytes > 0
     assert np.isfinite(idx.avg_length)
+
+
+FEEDBACK_DOCS = [
+    "invoice dispute escalated to finance controller ledger reconciliation",
+    "ledger reconciliation controller sign off quarterly close",
+    "controller ledger audit trail and quarterly close checklist",
+    "hiking trip photos and lunch plans",
+    "zebra migration notes",
+]
+
+
+def test_feedback_finds_a_document_that_shares_no_word_with_the_query() -> None:
+    idx = Bm25Index.build([FEEDBACK_DOCS], n_features=2**16)
+    plain = [i for i, _ in idx.search("invoice dispute", k=5)]
+    assert plain == [0]
+    # the top document's own vocabulary pulls in its neighbours, which the query never named
+    fed = [i for i, _ in idx.search_with_feedback("invoice dispute", k=5, feedback_docs=1, feedback_terms=8)]
+    assert fed[0] == 0
+    assert 1 in fed
+
+
+def test_feedback_never_drops_the_original_hits() -> None:
+    idx = Bm25Index.build([FEEDBACK_DOCS], n_features=2**16)
+    plain = {i for i, _ in idx.search("zebra", k=5)}
+    fed = {i for i, _ in idx.search_with_feedback("zebra", k=5, feedback_docs=1, feedback_terms=5)}
+    assert plain <= fed
+
+
+def test_a_query_with_no_known_terms_stays_empty_with_feedback() -> None:
+    idx = Bm25Index.build([FEEDBACK_DOCS], n_features=2**16)
+    assert idx.search_with_feedback("qqqqq", k=3, feedback_docs=2, feedback_terms=5) == []
+
+
+def test_feedback_weight_zero_is_the_plain_search() -> None:
+    idx = Bm25Index.build([FEEDBACK_DOCS], n_features=2**16)
+    a = idx.search("ledger", k=5)
+    b = idx.search_with_feedback("ledger", k=5, feedback_docs=2, feedback_terms=5, weight=0.0)
+    assert [i for i, _ in a] == [i for i, _ in b]
+
+
+def test_ranking_with_feedback_is_deterministic() -> None:
+    idx = Bm25Index.build([FEEDBACK_DOCS], n_features=2**16)
+    first = idx.search_with_feedback("ledger", k=5, feedback_docs=2, feedback_terms=6)
+    assert first == idx.search_with_feedback("ledger", k=5, feedback_docs=2, feedback_terms=6)
+    assert np.isfinite([s for _, s in first]).all()
+
+
+def test_non_positive_feedback_parameters_are_refused() -> None:
+    idx = Bm25Index.build([FEEDBACK_DOCS], n_features=2**16)
+    with pytest.raises(ValueError, match="feedback"):
+        idx.search_with_feedback("ledger", k=3, feedback_docs=0, feedback_terms=5)
