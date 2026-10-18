@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from constellation.actions.sinks import DryRunSink, Sink
 from constellation.actions.store import ActionRecord, ActionStore, CapError
 from constellation.actions.suggest import suggestions_from_rows
+from constellation.agents.acting import ActingToolbox, propose_follow_up
 from constellation.agents.epistemic import LLM, Question
 from constellation.agents.llm import LLMError
 from constellation.agents.planner import solve
@@ -127,6 +128,8 @@ def _action_json(record: ActionRecord) -> dict[str, Any]:
         "result": record.result,
         "evidence": record.evidence,
         "created": record.created,
+        "provenance": record.provenance,
+        "payload_hash": record.payload_hash,
     }
 
 
@@ -313,6 +316,9 @@ def create_app(
         found = rows[0] if rows else {"path": [], "hops": None}
         return {"path": found["path"], "hops": found["hops"], "proof": {"queries": [proof]}}
 
+    actions_store = ActionStore(memory) if memory is not None else None
+    action_limiter = Limiter(10, 300)
+
     @app.post("/api/v1/ask")
     def ask(body: AskRequest, request: Request) -> dict[str, Any]:
         tenant = tenant_of(body.tenant)
@@ -327,18 +333,32 @@ def create_app(
         if not limiter.allow(_caller(request)):
             raise HTTPException(429, "rate limit reached; try again shortly")
         question = Question("live", body.kind, body.question, actor=actor, day=day)
-        tools = Toolbox(port, tenant.graph, perspective)
+        # the Ask path alone may propose actions, and only where actions are enabled; the benchmark never does
+        acting = (
+            ActingToolbox(
+                port,
+                tenant.graph,
+                perspective,
+                store=actions_store,
+                allow=lambda: action_limiter.allow(_caller(request)),
+            )
+            if actions_store is not None
+            else None
+        )
+        tools = acting or Toolbox(port, tenant.graph, perspective)
         try:
             llm = llm_factory()
             run = solve(llm, tools, question)
         except LLMError as err:
             # quota exhaustion, outages and missing credentials all read the same to a visitor; detail stays in logs
             raise HTTPException(503, "the model is unavailable right now; recorded runs are still browsable") from err
+        proposed = propose_follow_up(llm, acting, question, run) if acting is not None else None
         usage = list(getattr(llm, "usage", []))
         return {
             "tenant": tenant.key,
             "kind": body.kind,
             "answer": run.answer,
+            **({"proposed_action": _action_json(proposed)} if proposed is not None else {}),
             "proof": {"queries": [{"name": q.name, "params": q.params, "sha256": q.sha256} for q in tools.queries]},
             "trace": {
                 "stop_reason": run.stop_reason,
@@ -375,9 +395,6 @@ def create_app(
     def scoreboard() -> dict[str, Any]:
         runs = [json.loads(p.read_text()) for p in sorted(settings.published.glob("*.summary.json"))]
         return {"runs": runs}
-
-    actions_store = ActionStore(memory) if memory is not None else None
-    action_limiter = Limiter(10, 300)
 
     def suggestions_for(tenant: Tenant) -> list[dict[str, Any]]:
         proof = prove(port, tenant.graph, "ownership_all", {})
