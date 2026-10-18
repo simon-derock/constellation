@@ -7,7 +7,7 @@ import pytest
 from constellation.actions.store import ActionRecord
 from constellation.agents.acting import PROPOSE_ACTION, ActingToolbox, propose_follow_up
 from constellation.agents.epistemic import AgentRun, Question, answer, specs_for
-from constellation.agents.llm import LLMError, ModelLock, Reply, WorkersAI
+from constellation.agents.llm import ChatClient, LLMError, ModelLock, Reply
 from constellation.agents.toolbox import Toolbox
 from constellation.eval import run_epistemic
 from constellation.graph.read import ReadPort, ReadResult, canonical_sha256
@@ -321,7 +321,7 @@ def test_the_benchmark_runner_builds_a_plain_toolbox(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(run_epistemic, "solve", solve)
     monkeypatch.setattr(run_epistemic, "trajectory", noop)
     monkeypatch.setattr(run_epistemic, "score", noop)
-    llm = WorkersAI("acct", "token", ModelLock("m", 0.0, 1))
+    llm = ChatClient("https://api.cohere.com/x", "token", ModelLock("m", 0.0, 1))
     raw = {"question_id": "q", "question_type": "SILENCE", "question_text": "t"}
     run_epistemic.run_one(llm, FakePort(), "g", raw, {})
     assert [type(t) for t in built] == [Toolbox]
