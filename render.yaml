@@ -19,7 +19,7 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: LIVE_SYNC_SECONDS
-        value: "900"
+        value: "540"
       # read-only token for public repositories; without it the live tenant serves the snapshot unchanged
       - key: GITHUB_TOKEN
         sync: false
