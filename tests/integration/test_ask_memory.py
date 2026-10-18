@@ -1,6 +1,6 @@
 import json
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +9,7 @@ from falkordb import FalkorDB
 from fastapi.testclient import TestClient
 from test_api import ORIGIN, PLAN, Scripted
 
+from constellation.agents.llm import Reply
 from constellation.api.app import Settings, Tenant, create_app
 from constellation.graph.read import ReadPort
 from constellation.ingest.build_apex import build
@@ -33,13 +34,27 @@ def port(falkordb: FalkorDB) -> ReadPort:
     return ReadPort(falkordb)
 
 
+class Model(Scripted):
+    # a memory-backed Ask may end with a follow-up turn that offers propose_action; here it declines and is counted
+    # apart, so `calls` counts only the calls that answer the question
+    def __init__(self, replies: list[str]) -> None:
+        super().__init__(replies)
+        self.follow_ups = 0
+
+    def chat(self, messages: Sequence[dict[str, Any]], tools: Sequence[dict[str, Any]]) -> Reply:
+        if any(t["function"]["name"] == "propose_action" for t in tools):
+            self.follow_ups += 1
+            return Reply("nothing to propose", (), {"role": "assistant", "content": "nothing to propose"})
+        return super().chat(messages, tools)
+
+
 class Rig:
     def __init__(
         self,
         port: ReadPort,
         falkordb: FalkorDB,
         tmp_path: Path,
-        llm: Scripted,
+        llm: Model,
         graph: str = GRAPH,
         memory_tenant: str = "",
     ) -> None:
@@ -79,7 +94,7 @@ def private_graph(port: ReadPort, falkordb: FalkorDB) -> Iterator[str]:
 
 @pytest.fixture
 def rig(port: ReadPort, falkordb: FalkorDB, tmp_path: Path) -> Rig:
-    return Rig(port, falkordb, tmp_path, Scripted([PLAN, PLAN, PLAN, PLAN]))
+    return Rig(port, falkordb, tmp_path, Model([PLAN, PLAN, PLAN, PLAN]))
 
 
 @pytest.mark.ac("AC-T2-02")
@@ -111,9 +126,10 @@ def test_two_agreeing_answers_become_a_learned_fact_and_one_does_not(rig: Rig) -
 def test_a_repeated_question_is_recalled_with_no_model_call_and_a_proof_that_replays(rig: Rig) -> None:
     first = rig.ask().json()
     assert first["recalled"] is False
-    assert rig.llm.calls == 1
+    assert (rig.llm.calls, rig.llm.follow_ups) == (1, 1)
     again = rig.ask(session=OTHER, question=QUESTION.upper() + "  ").json()
-    assert rig.llm.calls == 1
+    # a recall makes no model call of any kind: no answering call and no follow-up turn proposing an action
+    assert (rig.llm.calls, rig.llm.follow_ups) == (1, 1)
     assert again["recalled"] is True
     assert again["answer"] == first["answer"]
     assert again["proof"] == first["proof"]
@@ -130,7 +146,7 @@ def test_a_repeated_question_is_recalled_with_no_model_call_and_a_proof_that_rep
 def test_a_recall_is_refused_once_the_graph_no_longer_returns_the_stored_hashes(
     port: ReadPort, falkordb: FalkorDB, tmp_path: Path, private_graph: str
 ) -> None:
-    rig = Rig(port, falkordb, tmp_path, Scripted([PLAN, PLAN, PLAN]), private_graph)
+    rig = Rig(port, falkordb, tmp_path, Model([PLAN, PLAN, PLAN]), private_graph)
     assert rig.ask().json()["answer"]["exists"] is False
     assert rig.ask(session=OTHER).json()["recalled"] is True
     # a risk flag now exists in the graph the answer was drawn from
@@ -148,7 +164,7 @@ def test_a_recall_is_refused_once_the_graph_no_longer_returns_the_stored_hashes(
 def test_an_answer_the_graph_has_contradicted_is_never_learned(
     port: ReadPort, falkordb: FalkorDB, tmp_path: Path, private_graph: str
 ) -> None:
-    rig = Rig(port, falkordb, tmp_path, Scripted([PLAN, PLAN]), private_graph)
+    rig = Rig(port, falkordb, tmp_path, Model([PLAN, PLAN]), private_graph)
     rig.ask()
     falkordb.select_graph(private_graph).query(RAISE_FLAG)
     rig.ask()
@@ -216,7 +232,7 @@ def test_an_answer_the_graph_did_not_decide_is_returned_but_not_remembered(
     port: ReadPort, falkordb: FalkorDB, tmp_path: Path
 ) -> None:
     # no usable plan, so the ReAct loop's final JSON stands on the model's word alone
-    rig = Rig(port, falkordb, tmp_path, Scripted(["no json", "no json", '{"exists": true}']))
+    rig = Rig(port, falkordb, tmp_path, Model(["no json", "no json", '{"exists": true}']))
     got = rig.ask()
     assert got.status_code == 200
     assert got.json()["answer"] == {"exists": True}
@@ -267,7 +283,7 @@ def test_a_session_is_restored_by_its_id_after_a_restart(
     port: ReadPort, falkordb: FalkorDB, tmp_path: Path, rig: Rig
 ) -> None:
     rig.ask()
-    restarted = Rig(port, falkordb, tmp_path, Scripted([]), memory_tenant=rig.memory.tenant)
+    restarted = Rig(port, falkordb, tmp_path, Model([]), memory_tenant=rig.memory.tenant)
     assert [t["role"] for t in restarted.view().json()["turns"]] == ["user", "assistant"]
     assert restarted.ask(session=OTHER).json()["recalled"] is True
     assert restarted.llm.calls == 0
@@ -299,7 +315,7 @@ def test_the_memory_view_is_rate_limited_like_the_other_reads(rig: Rig) -> None:
 
 def test_without_a_memory_store_ask_is_stateless_and_the_view_is_unavailable(port: ReadPort, tmp_path: Path) -> None:
     settings = Settings(tenants={"apex": Tenant("apex", GRAPH, "Apex", {})}, allowed_origins=(), published=tmp_path)
-    llm = Scripted([PLAN, PLAN])
+    llm = Model([PLAN, PLAN])
     client = TestClient(create_app(port, settings, llm_factory=lambda: llm))
     assert [client.post("/api/v1/ask", json=ASK).json()["recalled"] for _ in range(2)] == [False, False]
     assert llm.calls == 2
