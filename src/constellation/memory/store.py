@@ -16,6 +16,9 @@ from constellation.graph.write import WritePort, clean
 
 # graph names are built only from these, so no principal or tenant can reach another graph or add Cypher syntax
 _NAME = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}")
+NAME_PATTERN = _NAME.pattern
+# consolidation owns fact names with this prefix: a learned fact always carries the episodes that support it
+SEMANTIC_PREFIX = "sem:"
 _TEMPLATE = "mem:template"
 _TEMPLATE_INDEXES = (
     ("Fact", "id"),
@@ -94,6 +97,10 @@ class MemoryStore:
     def query(self, principal: str, cypher: str, params: dict[str, object] | None = None) -> list[list[object]]:
         # the one place other stores write to a principal's graph: same validated name, same parameter hygiene
         return self._q(principal, cypher, params)
+
+    def principals(self) -> list[str]:
+        prefix = f"mem:{self.tenant}:"
+        return sorted(g[len(prefix) :] for g in self._db.list_graphs() if g.startswith(prefix))
 
     def provision(self, principal: str) -> str:
         name = self.graph_name(principal)
@@ -245,7 +252,7 @@ class MemoryStore:
                 "MERGE (f:Fact {id: $id}) ON CREATE SET f.value = $value, f.ver = 1, f.subject = $subject, "
                 "f.origin = 'consolidated', f.support = $support, f.fresh = true "
                 "WITH f, f.fresh AS fresh REMOVE f.fresh RETURN fresh",
-                {"id": f"sem:{subject}", "value": seen[0], "subject": subject, "support": len(seen)},
+                {"id": f"{SEMANTIC_PREFIX}{subject}", "value": seen[0], "subject": subject, "support": len(seen)},
             )
             if created and created[0][0] is True:
                 made.append(SemanticFact(subject, seen[0], len(seen)))
