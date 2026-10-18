@@ -8,6 +8,8 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 - **Gate:** `scripts/gate.sh` green · 480+ Python tests, 50+ web tests · commits only via `scripts/ship.sh`
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
 - **Snapshot:** release `snapshot-20261018` (`brain.rdb.gz`, 6.5 MB, both graphs); image boots in 8 s, 127 MB
+- **Web:** premium redesign shipped (warm paper, Instrument Serif + Geist, grain, parallax ghost word, no blue/gradients); video assets in `video/` still use the old look and must be recaptured last
+- **Retrieval:** docs median 4,276 chars; the 2-passage dense run saw only 2,400 (83% of gold docs are longer). Full-coverage kernel `constellation-redwood-full` running; then `eval.rerank_eval` with Cohere `rerank-v4.0-pro` (cached; ~470 calls of the 1,000/month)
 - **Blocked:** Workers AI free neurons exhausted (not reset 40 min after 00:00 UTC); Cohere trial key at its monthly cap. EpistemicBench has 48 of 78 rows; resume with `--resume`.
 
 ## Acceptance criteria
@@ -59,9 +61,8 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 ## Do not repeat
 - HF Gradio/Docker Spaces are paid; ZeroGPU and Voyage free tiers cannot carry a request path.
 - FalkorDB Cloud free: 100 MB, deleted after 7 idle days.
-- Cohere trial: 1,000 calls/month, all endpoints. Render free cannot run an embedding model.
+- Cohere trial: 1,000 calls/month; chat is capped but rerank still works. Render free cannot run an embedding model.
 - `graph` is a reserved Mermaid word; `test_*` helper names get collected by pytest.
-- Apex timestamps drift from the simulation day both ways; the day is the only clock (ADR-0005).
 - Causal rules take the first match: run events chronologically (19→21/21 links).
 - `_vendor/` is generated and sha256-pinned; regenerate with `tools/vendor_orgforge.py`, never edit.
 - Workers AI rejects null fields echoed back from replies (HTTP 400 on turn two): echo only role/content/tool_calls.
@@ -69,7 +70,6 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 - FalkorDB `RESTORE` fails under a different key name (name is inside the dump): copy graphs under the same name.
 - `>> .env` appends onto an unterminated last line and corrupts it: check with `awk -F=` (names and lengths only).
 - `uv run --with torch` pulls GBs; never. Do not run Docker builds while the gate runs.
-- `falkordb` is untyped: keep it behind `ReadPort`; mypy override is scoped to that module.
 
 ## Commands
 ```bash
