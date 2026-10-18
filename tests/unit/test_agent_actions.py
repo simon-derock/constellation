@@ -197,6 +197,16 @@ def test_the_actions_rate_limiter_is_asked_only_for_a_valid_proposal() -> None:
     assert (asked, store.filed, tools.proposed) == ([1], [], None)
 
 
+@pytest.mark.ac("AC-INV-05")
+def test_a_limited_proposal_is_not_retried() -> None:
+    store = Recorder()
+    tools = acting(store, allow=lambda: False)
+    llm = ScriptedLLM([proposal()])
+    assert propose_follow_up(llm, tools, SILENCE, run_of(tools)) is None
+    assert llm.replies == []
+    assert store.filed == []
+
+
 @pytest.mark.parametrize(
     ("title", "body"),
     [

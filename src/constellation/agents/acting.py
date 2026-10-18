@@ -131,7 +131,10 @@ def propose_follow_up(llm: LLM, tools: ActingToolbox, q: Question, run: AgentRun
         messages.append({**reply.message, "tool_calls": [call]})
         try:
             tools.propose_action(**json.loads(call["function"].get("arguments") or "{}"))
-        except (PermissionError, TypeError, ValueError) as err:
+        except PermissionError:
+            # the limiter says wait; asking the model again would not change that
+            return None
+        except (TypeError, ValueError) as err:
             messages.append(
                 {
                     "role": "tool",
