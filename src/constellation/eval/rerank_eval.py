@@ -81,15 +81,16 @@ def main() -> int:
     parser.add_argument("--data", type=Path, required=True, help="directory holding data/questions and data/documents")
     parser.add_argument("--depth", type=int, default=100)
     parser.add_argument("--model", default="rerank-v4.0-pro")
+    parser.add_argument("--key-env", default="COHERE_API_KEY", help="name of the environment variable holding the key")
     parser.add_argument("--doc-chars", type=int, default=6_000)
     parser.add_argument("--passages-per-doc", type=int, default=0, help="0 reranks document heads; N reranks N windows")
     parser.add_argument("--limit", type=int, default=0, help="rerank only the first N scored questions (smoke runs)")
     parser.add_argument("--cache", type=Path, default=Path("results/cache/rerank"))
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    key = os.environ.get("COHERE_API_KEY") or os.environ.get("COHERENCE_API_KEY", "")
+    key = os.environ.get(args.key_env) or os.environ.get("COHERE_API_KEY") or os.environ.get("COHERENCE_API_KEY", "")
     if not key:
-        raise SystemExit("COHERE_API_KEY is required")
+        raise SystemExit(f"{args.key_env} is required")
 
     rankings = json.loads(args.candidates.read_text())
     questions = pl.read_parquet(args.data / "data/questions/test.parquet").to_dicts()
