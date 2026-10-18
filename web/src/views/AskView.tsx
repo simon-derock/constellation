@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useAsOf } from "../asof";
 import { TimeRail } from "../components/TimeRail";
@@ -28,7 +28,14 @@ export function AskView() {
   const [question, setQuestion] = useState("");
   const [actor, setActor] = useState("");
   const people = useQuery({ queryKey: ["actors", TENANT], queryFn: () => actors(TENANT), staleTime: Infinity });
-  const asked = useMutation({ mutationFn: ask });
+  const client = useQueryClient();
+  // a proposal made while answering belongs to the Act section on this same page, so its list is refreshed
+  const asked = useMutation({
+    mutationFn: ask,
+    onSuccess: (response) => {
+      if (response.proposed_action) void client.invalidateQueries({ queryKey: ["actions"] });
+    },
+  });
   const chosen = actor || people.data?.actors[0]?.name || "";
   const mode = MODES.find((m) => m.kind === kind)!;
 

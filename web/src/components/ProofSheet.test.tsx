@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AskResponse } from "../lib/api";
+import type { ActionRecord, AskResponse } from "../lib/api";
 import { ProofSheet } from "./ProofSheet";
 
 const H1 = "a".repeat(64);
@@ -21,11 +21,26 @@ const response: AskResponse = {
   trace: { stop_reason: "planned", strategy_changes: [], llm_calls: 1, prompt_tokens: 600, completion_tokens: 40, tools: [] },
 };
 
-function show() {
+const PROPOSAL: ActionRecord = {
+  id: "p1",
+  kind: "file_issue",
+  title: "Write the postmortem for the Day 8 incident",
+  body: "No postmortem exists.",
+  status: "proposed",
+  approver: null,
+  mode: null,
+  result: null,
+  evidence: [{ name: "absence", params: {}, sha256: H1 }],
+  created: "t",
+  provenance: "agent",
+  payload_hash: "c".repeat(64),
+};
+
+function show(shown: AskResponse = response) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ProofSheet response={response} />
+      <ProofSheet response={shown} />
     </QueryClientProvider>,
   );
 }
@@ -44,6 +59,19 @@ describe("ProofSheet", () => {
     expect(screen.getByText("absence")).toBeInTheDocument();
     expect(screen.getByText("event_artifacts")).toBeInTheDocument();
     expect(await screen.findByRole("img", { name: /Proof seal/ })).toBeInTheDocument();
+  });
+
+  it("notes a proposal the agent made, in one line that points to the Act section", () => {
+    show({ ...response, proposed_action: PROPOSAL });
+    expect(screen.getByText("Proposed by the agent")).toBeInTheDocument();
+    expect(screen.getByText(PROPOSAL.title)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review it under Act" })).toHaveAttribute("href", "#act");
+  });
+
+  it("says nothing about a proposal when the agent made none", () => {
+    show();
+    expect(screen.queryByText("Proposed by the agent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Review it under Act/ })).not.toBeInTheDocument();
   });
 
   it("verifies when the replay returns the same hashes", async () => {
