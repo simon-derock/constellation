@@ -294,6 +294,23 @@ stateDiagram-v2
 
 The model chooses *what to ask*; it almost never writes query text. Reviewed catalogue queries come first, chained for multi-hop questions. Generated Cypher is a guarded last resort: it is parsed with `GRAPH.EXPLAIN`, checked against an allowlist, capped, run with `GRAPH.RO_QUERY`, and re-checked against the permission bitmap ([PLAN_SPEC §11](PLAN_SPEC.md)).
 
+## Shared memory over MCP
+
+Next to the read-only graph tools, `/mcp` serves memory and hand-offs, so several agents can share state and pass work to each other through FalkorDB. A principal (an agent, a team, a user) is one graph, `mem:<tenant>:<principal>`, cloned from a template with `GRAPH.COPY`. The server fixes the tenant, a principal name is checked against `[a-z0-9][a-z0-9_-]{0,62}`, and every value reaches the engine as a query parameter, so a tool argument can neither reach another graph nor add Cypher.
+
+| Tool | What it does | FalkorDB guarantee it relies on |
+|---|---|---|
+| `remember(principal, key, value, expected_version)` | Writes a fact. Version `0` creates it; otherwise the version last read. A stale version writes nothing and returns `ok: false` with the current version and value, so the caller merges and retries | Compare-and-set in one Cypher statement (`WHERE f.ver = $expected`): no lost update; `GRAPH.COPY` isolation between principals |
+| `recall(principal, key)` | Reads a fact with its version | The same graph and version the writers compare against |
+| `record_episode(principal, task, subject, value, evidence)` | Records what a task found, with one to twenty evidence ids | Episodes are append-only nodes in the principal's graph |
+| `learned(principal, limit)` | Consolidates: a subject is learned only from two or more agreeing episodes and none that disagree. Returns each fact with the evidence of the episodes behind it; read it back with `recall("sem:<subject>")` | `MERGE … ON CREATE`: a fact is created once, however many agents ask |
+| `handoff(principal, source, target, state)` | Stores a JSON state for another agent, with its sha256, and returns a `handoff_id` | The state is hashed on write and verified on claim |
+| `claim(principal, handoff_id, agent)` | Claims a handoff as the agent it is addressed to. Exactly one concurrent claim wins and gets the state; the others get `claimed: false` and the winner's name | One compare-and-set on `claimed_by IS NULL` |
+
+Two agents sharing a graph hand over work like this: the planner calls `handoff(principal="team", source="planner", target="executor", state={…})` and passes the returned id on, then the executor calls `claim(principal="team", handoff_id=…, agent="executor")`. Fact names starting `sem:` are written only by consolidation, so every learned fact carries its evidence.
+
+Bounds: a value is at most 4,000 characters, a handoff state 8 KiB of JSON, an episode cites one to twenty ids of at most 200 characters, `learned` returns at most 50 facts, and the server holds at most 100 principals. Reads never create a graph. The endpoint carries no authentication, so a principal is a namespace, not a secret.
+
 ## Cypher the product relies on
 
 ```cypher
