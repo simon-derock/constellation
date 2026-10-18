@@ -1178,6 +1178,22 @@ ul.actions .body {
   overflow-wrap: anywhere;
   margin: 0 0 18px;
 }
+ul.actions .label {
+  margin-bottom: 0.8em;
+}
+.hashes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin: 0 0 18px;
+  font-size: var(--step--1);
+  color: var(--ink-2);
+}
+.hashes > span {
+  display: inline-flex;
+  gap: 10px;
+  align-items: baseline;
+}
 .status {
   font-size: var(--step--1);
   color: var(--ink-2);

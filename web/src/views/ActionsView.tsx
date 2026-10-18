@@ -15,6 +15,8 @@ function outcome(action: ActionRecord): string {
   return `Issue filed: ${String(result.url ?? "")}`;
 }
 
+const short = (hash: string) => `${hash.slice(0, 12)}…`;
+
 const message = (error: unknown) => (error instanceof ApiError ? error.message : "Something went wrong. Try again.");
 
 export function ActionsView() {
@@ -76,7 +78,23 @@ export function ActionsView() {
       <ul className="actions">
         {recorded.data?.actions.map((a) => (
           <li key={a.id}>
+            {a.provenance === "agent" && <p className="label">Proposed by the agent</p>}
             <h3>{a.title}</h3>
+            {a.provenance === "agent" && (
+              <>
+                <pre className="body">{a.body}</pre>
+                <p className="hashes" aria-label="Evidence the agent cited">
+                  {a.evidence.map((e, i) => (
+                    <span key={`${e.sha256}-${i}`}>
+                      <span className="query-name">{e.name}</span>
+                      <code className="query-hash" title={e.sha256}>
+                        {short(e.sha256)}
+                      </code>
+                    </span>
+                  ))}
+                </p>
+              </>
+            )}
             <p className="status">
               <span className={`pill ${a.status}`}>{a.status}</span>
               {a.approver && <span className="hint"> Approved by {a.approver}.</span>}
