@@ -54,11 +54,4 @@ describe("HomeView", () => {
     show();
     expect(await screen.findAllByText("·")).toHaveLength(2);
   });
-
-  it("draws the two figures with accessible names", () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
-    show();
-    expect(screen.getByRole("img", { name: "A gilded sun" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /crescent moon/ })).toBeInTheDocument();
-  });
 });

@@ -1,4 +1,3 @@
-import { Figures } from "../components/Figures";
 import { useQuery } from "@tanstack/react-query";
 import { scoreboard } from "../lib/api";
 
@@ -8,7 +7,6 @@ export function ScoreboardView() {
   const runs = useQuery({ queryKey: ["scoreboard"], queryFn: scoreboard });
   return (
     <div className="page">
-      <Figures size="page" />
       <h1>Benchmark runs</h1>
       <p className="lede">Scored by the benchmark's own code. A leak cannot be bought back with a good answer.</p>
       {runs.isPending && <p className="hint">Loading runs…</p>}

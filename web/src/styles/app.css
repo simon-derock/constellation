@@ -150,80 +150,12 @@ main {
   padding: 0 var(--gutter) 14vh;
 }
 
-/* the figures: parallax moves their wrapper with the scroll, the float and halo animate what is inside */
-.figures {
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-.fig {
-  position: absolute;
-  user-select: none;
-}
-.fig-float {
-  width: 100%;
-}
-.fig-art {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-.fig-float-a {
-  animation: fly-a 9s ease-in-out infinite, halo 5s ease-in-out infinite;
-}
-.fig-float-b {
-  animation: fly-b 11s ease-in-out infinite, halo 6s ease-in-out infinite;
-}
-@keyframes fly-a {
-  0%, 100% { transform: translate(0, 0) rotate(-4deg); }
-  50% { transform: translate(24px, -28px) rotate(-1deg); }
-}
-@keyframes fly-b {
-  0%, 100% { transform: translate(0, 0) rotate(3deg); }
-  50% { transform: translate(-22px, 26px) rotate(0deg); }
-}
-@keyframes halo {
-  0%, 100% { filter: drop-shadow(0 0 8px var(--gold-glow)) drop-shadow(0 0 18px var(--gold-glow-soft)); }
-  50% { filter: drop-shadow(0 0 12px var(--gold-glow)) drop-shadow(0 0 24px var(--gold-glow-soft)); }
-}
 @keyframes rise {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
 .rise {
   animation: rise 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-
-/* the large pair on the home page, scrolled apart; the small pair beside every other title */
-.figures-hero .fig {
-  width: clamp(12rem, 25vw, 23rem);
-}
-.figures-hero .fig-left {
-  left: -3%;
-  top: 6rem;
-  transform: translate(calc(min(var(--y, 0), 600) * 0.18px), calc(min(var(--y, 0), 600) * 0.12px)) rotate(7deg);
-}
-.figures-hero .fig-right {
-  right: -3%;
-  top: 3rem;
-  transform: translate(calc(min(var(--y, 0), 600) * -0.18px), calc(min(var(--y, 0), 600) * 0.12px)) rotate(22deg);
-}
-.figures-page .fig {
-  width: clamp(9rem, 20vw, 17rem);
-  opacity: 0.92;
-}
-.figures-page .fig-left {
-  left: calc(var(--gutter) * -0.75);
-  top: 1rem;
-  transform: translate(0, calc(min(var(--y, 0), 600) * 0.1px));
-}
-.figures-page .fig-right {
-  right: calc(var(--gutter) * -0.75);
-  top: 1rem;
-  transform: translate(0, calc(min(var(--y, 0), 600) * 0.14px));
 }
 
 /* home */
@@ -242,10 +174,13 @@ main {
 .hero-copy {
   position: relative;
   z-index: 10;
+  transform: translate3d(0, calc(min(var(--y, 0), 600) * 0.22px), 0);
+  opacity: calc(1 - min(var(--y, 0), 600) / 800);
 }
 .hero h1 {
   margin-top: 1.25rem;
-  font-size: clamp(3.4rem, 9.5vw, 7rem);
+  font-size: clamp(3.6rem, 12vw, 8rem);
+  font-weight: 300;
   line-height: 1;
 }
 .tagline {
@@ -346,13 +281,13 @@ main {
   color: var(--ink-2);
 }
 
-/* every other page: the same column under the small figures */
+/* every other page: one centred column */
 .page,
 .ask {
   position: relative;
   padding-top: clamp(64px, 12vh, 130px);
 }
-.page > *:not(.figures) {
+.page > * {
   position: relative;
   z-index: 1;
   max-width: var(--col);
@@ -1104,15 +1039,15 @@ ul.actions .body {
 
 @media (prefers-reduced-motion: reduce) {
   body::after,
-  .fig-float,
   .rise,
   .page > h1,
   .ask-form > h1,
   .lede {
     animation: none;
   }
-  .fig {
-    transform: none !important;
+  .hero-copy {
+    transform: none;
+    opacity: 1;
   }
   .bitgrid[data-phase="verified"] rect[data-on="true"] {
     animation: none;
@@ -1128,19 +1063,7 @@ ul.actions .body {
     letter-spacing: 0.24em;
   }
   .hero {
-    min-height: 0;
-    padding: 17rem 0 3rem;
-  }
-  .figures-hero .fig {
-    width: 44vw;
-  }
-  .figures-hero .fig-left {
-    left: -4%;
-    top: 3rem;
-  }
-  .figures-hero .fig-right {
-    right: -4%;
-    top: 1rem;
+    min-height: 70vh;
   }
   .quote {
     padding: 6rem 0;
@@ -1151,9 +1074,5 @@ ul.actions .body {
   }
   .begin {
     padding: 6rem 0;
-  }
-  .figures-page .fig {
-    width: 7.5rem;
-    opacity: 0.8;
   }
 }

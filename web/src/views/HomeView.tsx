@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Figures } from "../components/Figures";
 import { live } from "../lib/api";
 
 const PILLARS = [
@@ -18,7 +17,6 @@ export function HomeView() {
   return (
     <div className="home">
       <section className="hero">
-        <Figures size="hero" />
         <div className="hero-copy">
           <p className="label rise">A company brain</p>
           <h1 className="rise" style={{ animationDelay: ".15s" }}>
