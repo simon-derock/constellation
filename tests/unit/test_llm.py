@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from constellation.agents.llm import ChatClient, LLMError, ModelLock, https_transport
-from constellation.agents.providers import BY_NAME, llm_factory
+from constellation.agents.providers import BY_NAME, PROVIDERS, candidates, llm_factory
 
 LOCK = ModelLock(model="@cf/openai/gpt-oss-20b", temperature=0.0, max_tokens=512)
 
@@ -347,3 +347,79 @@ def test_the_real_transport_refuses_lookalike_and_other_origins(url: str, monkey
     with pytest.raises(LLMError, match="origin"):
         https_transport(url, {}, b"{}")
     assert opened.requests == []
+
+
+# every key a deployment can set, in the documented priority order, with the host that key reaches
+PRIORITY = [
+    ({"GROQ_KEY": "k"}, "https://api.groq.com/"),
+    ({"CEREBRAS_API_KEY": "k"}, "https://api.cerebras.ai/"),
+    ({"GEMINI_API_KEY": "k"}, "https://generativelanguage.googleapis.com/"),
+    ({"OPENROUTER_API_KEY": "k"}, "https://openrouter.ai/"),
+    ({"COHERE_CHAT_KEY": "k"}, "https://api.cohere.com/"),
+    ({"CLOUDFLARE_API_TOKEN": "k", "CLOUDFLARE_ACCOUNT_ID": "a"}, "https://api.cloudflare.com/"),
+]
+
+
+def asked(env: dict[str, str]) -> Scripted:
+    transport = Scripted([OK])
+    llm_factory(env, transport, sleep=lambda _s: None)().chat([], tools=[])
+    return transport
+
+
+def test_the_documented_priority_order() -> None:
+    assert [p.name for p in PROVIDERS] == ["groq", "cerebras", "gemini", "openrouter", "cohere", "workers"]
+
+
+@pytest.mark.parametrize("first", range(len(PRIORITY)))
+def test_the_first_configured_key_in_priority_order_answers(first: int) -> None:
+    env = {k: v for keys, _host in PRIORITY[first:] for k, v in keys.items()}
+    assert asked(env).requests[0][0].startswith(PRIORITY[first][1])
+
+
+def test_an_account_id_without_its_token_does_not_configure_workers_ai() -> None:
+    assert candidates({"CLOUDFLARE_ACCOUNT_ID": "a"}) == ()
+
+
+@pytest.mark.parametrize(
+    ("name", "host"),
+    [("groq", "api.groq.com"), ("cohere", "api.cohere.com"), ("gemini", "generativelanguage.googleapis.com")],
+)
+def test_model_provider_picks_the_provider_even_when_a_higher_one_is_configured(name: str, host: str) -> None:
+    env = {k: v for keys, _host in PRIORITY for k, v in keys.items()} | {"MODEL_PROVIDER": name}
+    assert asked(env).requests[0][0].startswith(f"https://{host}")
+
+
+def test_model_provider_ignores_case_and_surrounding_space() -> None:
+    env = {"GROQ_KEY": "k", "CEREBRAS_API_KEY": "k", "MODEL_PROVIDER": " Cerebras "}
+    assert asked(env).requests[0][0].startswith("https://api.cerebras.ai/")
+
+
+def test_model_provider_uses_that_providers_pinned_model() -> None:
+    env = {"GROQ_KEY": "k", "CEREBRAS_API_KEY": "k", "MODEL_PROVIDER": "cerebras"}
+    assert asked(env).requests[0][2]["model"] == "gpt-oss-120b"
+
+
+def test_an_unknown_model_provider_is_refused_at_startup_naming_the_choices() -> None:
+    with pytest.raises(ValueError, match=r"MODEL_PROVIDER.*groq, cerebras, gemini, openrouter, cohere, workers"):
+        llm_factory({"MODEL_PROVIDER": "openai"})
+
+
+def test_a_named_provider_without_its_key_fails_when_asked_and_names_the_variable() -> None:
+    make = llm_factory({"GROQ_KEY": "k", "MODEL_PROVIDER": "cerebras"})
+    with pytest.raises(LLMError, match="cerebras needs CEREBRAS_API_KEY"):
+        make()
+
+
+def test_the_model_variable_pins_the_first_provider_and_its_model() -> None:
+    env = {"CEREBRAS_API_KEY": "k", "GEMINI_API_KEY": "k", "MODEL": "llama3.1-8b"}
+    url, _headers, body = asked(env).requests[0]
+    assert url.startswith("https://api.cerebras.ai/")
+    assert body["model"] == "llama3.1-8b"
+    assert [p.name for p in candidates(env)] == ["cerebras"]
+
+
+def test_the_model_variable_with_a_named_provider_applies_to_it() -> None:
+    env = {"GROQ_KEY": "k", "GEMINI_API_KEY": "k", "MODEL_PROVIDER": "gemini", "MODEL": "gemini-3.8-flash"}
+    url, _headers, body = asked(env).requests[0]
+    assert url.startswith("https://generativelanguage.googleapis.com/")
+    assert body["model"] == "gemini-3.8-flash"
