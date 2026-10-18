@@ -1,5 +1,7 @@
 /* the palette is the reference design's, value for value: a near-white paper, navy ink, one gold, one royal blue */
 :root {
+  /* the reference has one scheme, light: a system set to dark must not turn the page navy */
+  color-scheme: light;
   --paper: oklch(0.955 0.002 90);
   --sheet: oklch(0.935 0.002 90);
   --ink: oklch(0.22 0.02 255);
@@ -30,24 +32,4 @@
   --gutter: clamp(24px, 7vw, 120px);
   --col: 38rem;
   --wide: 62rem;
-}
-
-/* the reference's dark values, for a system set to dark */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: oklch(0.16 0.025 260);
-    --sheet: oklch(0.18 0.02 260);
-    --ink: oklch(0.95 0.01 85);
-    --ink-2: oklch(0.72 0.02 255);
-    --gold: oklch(0.8 0.12 85);
-    --rule: oklch(0.8 0.12 85 / 0.18);
-    --verified: oklch(0.72 0.11 262);
-    --mismatch: oklch(0.7 0.18 27);
-    --stale: oklch(0.78 0.1 80);
-    --held: oklch(0.95 0.01 85);
-    --former: oklch(0.34 0.04 80);
-    --focus: oklch(0.8 0.12 85);
-    --grain: 0.05;
-    --grain-blend: screen;
-  }
 }
