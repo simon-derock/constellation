@@ -13,6 +13,8 @@ from constellation.agents.llm import LLMError, ModelLock, WorkersAI
 from constellation.api.app import Settings, Tenant, create_app
 from constellation.brain.roles import roles_from_config
 from constellation.graph.read import ReadPort
+from constellation.live.loop import start as start_live_sync
+from constellation.live.run import sync_job
 from constellation.memory.store import MemoryStore
 
 # https only, plus localhost for development; a wildcard would let any page call the API with the visitor's network
@@ -68,6 +70,10 @@ def _llm_factory(env: Mapping[str, str]) -> Callable[[], LLM]:
 def create() -> FastAPI:
     env = os.environ
     db = FalkorDB(host=env.get("FALKORDB_HOST", "localhost"), port=int(env.get("FALKORDB_PORT", "6379")))
+    # keeps the live tenant current when credentials are present; otherwise it serves the shipped snapshot
+    start_live_sync(
+        env, lambda e: sync_job(db, e, e.get("LIVE_ORG", "FalkorDB"), e.get("LIVE_GRAPH", "brain:falkordb"))
+    )
     return create_app(
         ReadPort(db),
         settings_from_env(env),

@@ -1,14 +1,14 @@
 import argparse
 import os
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from falkordb import FalkorDB
 
 from constellation.graph.write import WritePort
 from constellation.live.github import GitHubClient
 from constellation.live.graph import LiveGraph
-from constellation.live.sync import Syncer
+from constellation.live.sync import Syncer, SyncReport
 
 _MIN_KEY = 16
 
@@ -22,6 +22,12 @@ def credentials(env: Mapping[str, str]) -> tuple[str, str]:
     return token, key
 
 
+def sync_job(db: FalkorDB, env: Mapping[str, str], org: str, graph: str) -> Callable[[], SyncReport]:
+    token, key = credentials(env)
+    syncer = Syncer(GitHubClient(token), LiveGraph(db, WritePort(db), graph), key, clock=lambda: int(time.time()))
+    return lambda: syncer.run(org)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync a public GitHub organisation into the live graph")
     parser.add_argument("--org", default="FalkorDB")
@@ -30,11 +36,9 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=6379)
     parser.add_argument("--every", type=int, default=0, help="seconds between syncs; 0 runs once")
     args = parser.parse_args()
-    token, key = credentials(os.environ)
-    db = FalkorDB(host=args.host, port=args.port)
-    syncer = Syncer(GitHubClient(token), LiveGraph(db, WritePort(db), args.graph), key, clock=lambda: int(time.time()))
+    sync = sync_job(FalkorDB(host=args.host, port=args.port), os.environ, args.org, args.graph)
     while True:
-        report = syncer.run(args.org)
+        report = sync()
         print(report, flush=True)
         if not args.every:
             return 1 if report.rate_limited else 0
