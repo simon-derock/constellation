@@ -70,6 +70,30 @@ export interface ActionRecord {
   created: string;
 }
 
+export interface LiveStateRow {
+  kind: string;
+  state: string;
+  items: number;
+}
+
+export interface LiveChange {
+  item: string;
+  title: string;
+  predicate: "state" | "assignees" | "labels";
+  old: string;
+  new: string;
+  at: number;
+}
+
+export interface LiveResponse {
+  summary: LiveStateRow[];
+  as_of: LiveStateRow[] | null;
+  changes: LiveChange[];
+  repos: { repo: string; items: number }[];
+  freshness: { newest: string | null; repositories: number };
+  proof: { queries: ProofQuery[] };
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -121,6 +145,8 @@ export const ownership = (tenant: string) =>
   request<{ domains: { domain: string; intervals: Interval[] }[]; proof: { queries: ProofQuery[] } }>(
     `/api/v1/ownership?tenant=${encodeURIComponent(tenant)}`,
   );
+export const live = (tenant: string, at?: number) =>
+  request<LiveResponse>(`/api/v1/live?tenant=${encodeURIComponent(tenant)}${at === undefined ? "" : `&at=${at}`}`);
 export const scoreboard = () => request<{ runs: RunSummary[] }>("/api/v1/scoreboard");
 
 export const suggestions = (tenant: string) =>

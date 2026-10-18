@@ -3,12 +3,14 @@ import { AsOfProvider } from "./asof";
 import { TimeRail } from "./components/TimeRail";
 import { ActionsView } from "./views/ActionsView";
 import { AskView } from "./views/AskView";
+import { LiveView } from "./views/LiveView";
 import { OwnershipView } from "./views/OwnershipView";
 import { ScoreboardView } from "./views/ScoreboardView";
 
 const VIEWS = [
   { id: "ask", label: "Ask", rail: true, view: <AskView /> },
   { id: "ownership", label: "Ownership", rail: true, view: <OwnershipView /> },
+  { id: "live", label: "Live", rail: false, view: <LiveView /> },
   { id: "act", label: "Act", rail: false, view: <ActionsView /> },
   { id: "scoreboard", label: "Scoreboard", rail: false, view: <ScoreboardView /> },
 ] as const;
