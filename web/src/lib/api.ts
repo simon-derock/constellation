@@ -160,6 +160,24 @@ export const graphView = (view: string) =>
   request<{ view: GraphViewMeta; nodes: GraphNode[]; edges: GraphEdge[]; proof: { queries: ProofQuery[] } }>(
     `/api/v1/graph?view=${encodeURIComponent(view)}`,
   );
+export interface SearchHit {
+  item: string;
+  title: string;
+  repo: string;
+  via: string[];
+}
+
+export const liveSearch = (q: string) =>
+  request<{ hits: SearchHit[]; vector_used: boolean; proof: { queries: ProofQuery[] } }>(
+    `/api/v1/live/search?tenant=falkordb&q=${encodeURIComponent(q)}`,
+  );
+export const livePeople = () =>
+  request<{
+    central: { person: string; score: number }[];
+    bridges: { person: string; score: number }[];
+    components: { size: number; components: number }[];
+    proof: { queries: ProofQuery[] };
+  }>("/api/v1/live/people?tenant=falkordb");
 export const scoreboard = () => request<{ runs: RunSummary[] }>("/api/v1/scoreboard");
 
 export const suggestions = (tenant: string) =>

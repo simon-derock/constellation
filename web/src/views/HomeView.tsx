@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { GraphStage } from "../graph/GraphStage";
+import { LiveSearch } from "../graph/LiveSearch";
 import { live } from "../lib/api";
 
 const PILLARS = [
@@ -35,6 +36,8 @@ export function HomeView() {
       </div>
 
       <div className="home-body">
+        <LiveSearch />
+
         <div className="eyebrow">
           <span>Open source</span>
         </div>

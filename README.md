@@ -345,7 +345,31 @@ Only public and synthetic data is used. People appear as stable pseudonyms. Benc
 
 ## Results
 
-None yet. Each figure will link to the run that produced it, with official raw scores published alongside gold-audited scores.
+Every figure below comes from a recorded run in `results/published/` or `docs/audits/`, with its commit, dataset revision and model revision. Nothing here is a target.
+
+### Retrieval on EnterpriseRAG-Bench (511,962 documents, 470 scored questions)
+
+Plain retrieval, judge-free: a hit means at least one expected document is in the top k. 95% intervals are Wilson.
+
+| Pipeline | hit@1 | hit@10 | hit@200 |
+|---|---|---|---|
+| BM25 (keyword) | 0.540 | 0.745 | 0.892 |
+| Dense bge-base, every document embedded | 0.381 | 0.557 | 0.772 |
+| + Cohere `rerank-v4.0-pro`, depth 200 | 0.751 (0.710–0.788) | **0.881** (0.848–0.907) | – |
+
+The reranker is the one large gain. Three things did not help and are recorded as negative results: pseudo-relevance feedback, query-focused passage reranking, and a Qwen3-4B query rewrite. The candidate pool caps the best configuration near 0.92 hit@10. **The 99% target is not reached by this pipeline**, and the audit explains why: [`docs/audits/2026-10-18-redwood-retrieval-stack.md`](docs/audits/2026-10-18-redwood-retrieval-stack.md).
+
+### Epistemic questions on the OrgForge simulation (EpistemicBench)
+
+Recorded so far: 48 of 78 questions, with the model that could answer them before its quota ran out. Accuracy on those 48 is 0.667 and the violation count is 0. The run is incomplete, so no score is published yet. The raw rows are in `results/raw/`.
+
+### Live graph
+
+FalkorDB's public GitHub organisation, read on 2026-10-18: 8,135 items, 74 repositories and 347 people (as pseudonyms). Its proofs replay against the graph.
+
+### Engine
+
+FalkorDB 4.22.1 (digest-pinned). Betweenness centrality is computed with a fixed source sample, which is exact at this size; memory use grows with the sample size, so it is kept just above the node count.
 
 ## Running it
 
@@ -353,7 +377,7 @@ Setup instructions land with the first runnable build. The target is a single `d
 
 ## AI assistance
 
-AI coding assistants were used during development, as the hackathon rules allow. Every change is reviewed, tested and understood by the author, who can explain the code, the graph model, the queries and the architecture decisions.
+AI coding assistants (Claude) wrote much of the code in this repository, under the author's direction. The author reviewed, tested and can explain every part: the graph model, the Cypher, the retrieval pipeline and the architecture decisions. The reviewed design, the decision records in `docs/adr/`, and the audits are the parts that carry the claims. Where an AI-written part failed a measurement, the failure is recorded rather than removed.
 
 ## Prior art
 
