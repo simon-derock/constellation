@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import io
 import json
@@ -416,6 +417,85 @@ def test_the_model_variable_pins_the_first_provider_and_its_model() -> None:
     assert url.startswith("https://api.cerebras.ai/")
     assert body["model"] == "llama3.1-8b"
     assert [p.name for p in candidates(env)] == ["cerebras"]
+
+
+TWO = {"GROQ_KEY": "k", "CEREBRAS_API_KEY": "k"}
+
+
+class Fleet:
+    # the factory under test, a scripted transport and a clock the test can move
+    def __init__(self, env: dict[str, str], outcomes: list[tuple[int, dict[str, Any]]]) -> None:
+        self.transport = Scripted(outcomes)
+        self.now = 1_000.0
+        self.make = llm_factory(env, self.transport, sleep=lambda _s: None, clock=lambda: self.now)
+
+    def ask(self) -> str:
+        # one question's worth of calls; returns the host it went to, which must be a single one
+        before = len(self.transport.requests)
+        with contextlib.suppress(LLMError):
+            self.make().chat([], tools=[])
+        hosts = {url.split("/")[2] for url, _headers, _body in self.transport.requests[before:]}
+        assert len(hosts) == 1
+        return hosts.pop()
+
+
+def test_a_provider_out_of_quota_is_skipped_by_the_next_question_not_the_current_one() -> None:
+    fleet = Fleet(TWO, [(429, {})] * 4 + [OK])
+    # the question that finds Groq out of quota retries on Groq and fails, as it began
+    assert fleet.ask() == "api.groq.com"
+    assert len(fleet.transport.requests) == 4
+    # the next question starts on the next provider
+    assert fleet.ask() == "api.cerebras.ai"
+
+
+def test_a_rested_provider_is_tried_first_again_once_its_rest_is_over() -> None:
+    fleet = Fleet(TWO, [(429, {})] * 4 + [OK, OK])
+    fleet.ask()
+    fleet.now += 599
+    assert fleet.ask() == "api.cerebras.ai"
+    fleet.now += 2
+    assert fleet.ask() == "api.groq.com"
+
+
+@pytest.mark.parametrize("status", [401, 402, 403, 413, 429, 500, 502, 503, 504])
+def test_unavailable_statuses_rest_the_provider(status: int) -> None:
+    fleet = Fleet(TWO, [(status, {})] * 4 + [OK])
+    fleet.ask()
+    assert fleet.ask() == "api.cerebras.ai"
+
+
+@pytest.mark.parametrize("status", [400, 404, 422])
+def test_a_rejected_request_does_not_rest_a_healthy_provider(status: int) -> None:
+    fleet = Fleet(TWO, [(status, {}), OK])
+    fleet.ask()
+    assert fleet.ask() == "api.groq.com"
+
+
+def test_when_every_provider_is_resting_the_one_that_rests_least_is_tried() -> None:
+    fleet = Fleet(TWO, [(429, {})] * 8 + [OK])
+    fleet.ask()
+    fleet.now += 10
+    fleet.ask()
+    fleet.now += 10
+    assert fleet.ask() == "api.groq.com"
+
+
+def test_a_lone_provider_is_still_used_after_it_failed() -> None:
+    fleet = Fleet({"GROQ_KEY": "k"}, [(429, {})] * 4 + [OK])
+    fleet.ask()
+    assert fleet.ask() == "api.groq.com"
+
+
+def test_a_named_provider_is_never_replaced_by_another() -> None:
+    fleet = Fleet(TWO | {"MODEL_PROVIDER": "groq"}, [(429, {})] * 4 + [OK])
+    fleet.ask()
+    assert fleet.ask() == "api.groq.com"
+
+
+def test_token_usage_is_still_reported_through_the_failover_wrapper() -> None:
+    llm = Fleet(TWO, [OK]).make()
+    llm.chat([], tools=[])
+    assert [(u.prompt_tokens, u.completion_tokens) for u in llm.usage] == [(7, 3)]  # type: ignore[attr-defined]
 
 
 def test_the_model_variable_with_a_named_provider_applies_to_it() -> None:
