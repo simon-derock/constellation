@@ -28,17 +28,26 @@ export function HomeView() {
           <p className="tagline rise" style={{ animationDelay: ".3s" }}>
             Every answer, with its proof.
           </p>
-          <aside className="hackathon rise" style={{ animationDelay: ".45s" }} aria-label="Graph Hacks">
-            <p className="hackathon-title">Graph Hacks: Context for AI Agents</p>
-            <p>
-              WeMakeDevs × FalkorDB · Entered in all three tracks: Agents That Act on Connected Data, Agent Memory and
-              Coordination, and Company Brain
-            </p>
-            <p>
-              FalkorDB is the primary graph database · Solo entry · Submissions close 11:59 PM IST, 18 October 2026
-            </p>
-          </aside>
+
         </div>
+
+        <aside className="corner corner-tl" aria-label="Graph Hacks">
+          <p className="corner-head">Graph Hacks: Context for AI Agents</p>
+          <p>WeMakeDevs × FalkorDB</p>
+        </aside>
+        <aside className="corner corner-tr">
+          <p>Solo entry</p>
+          <p>FalkorDB is the primary graph database</p>
+        </aside>
+        <aside className="corner corner-bl">
+          <p>01 Agents That Act on Connected Data</p>
+          <p>02 Agent Memory and Coordination</p>
+          <p>03 Company Brain</p>
+        </aside>
+        <aside className="corner corner-br">
+          <p>Submissions close</p>
+          <p>11:59 PM IST, 18 October 2026</p>
+        </aside>
       </header>
 
       <div className="home-graph">
