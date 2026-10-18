@@ -35,19 +35,6 @@ export function HomeView() {
           <p className="corner-head">Graph Hacks: Context for AI Agents</p>
           <p>WeMakeDevs × FalkorDB</p>
         </aside>
-        <aside className="corner corner-tr">
-          <p>Solo entry</p>
-          <p>FalkorDB is the primary graph database</p>
-        </aside>
-        <aside className="corner corner-bl">
-          <p>01 Agents That Act on Connected Data</p>
-          <p>02 Agent Memory and Coordination</p>
-          <p>03 Company Brain</p>
-        </aside>
-        <aside className="corner corner-br">
-          <p>Submissions close</p>
-          <p>11:59 PM IST, 18 October 2026</p>
-        </aside>
       </header>
 
       <div className="home-graph">

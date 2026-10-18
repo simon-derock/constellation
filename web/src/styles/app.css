@@ -241,20 +241,6 @@ main[data-view="home"] {
   top: 0.5rem;
   left: 2rem;
 }
-.corner-tr {
-  top: 0.5rem;
-  right: 2rem;
-  text-align: right;
-}
-.corner-bl {
-  bottom: 0.5rem;
-  left: 2rem;
-}
-.corner-br {
-  bottom: 0.5rem;
-  right: 2rem;
-  text-align: right;
-}
 @media (max-width: 760px) {
   .hero {
     min-height: 0;
@@ -265,14 +251,9 @@ main[data-view="home"] {
     margin: 1rem auto 0;
     text-align: center !important;
   }
-  .corner-tl,
-  .corner-tr,
-  .corner-bl,
-  .corner-br {
+  .corner-tl {
     top: auto;
-    bottom: auto;
     left: auto;
-    right: auto;
   }
 }
 .signature {
