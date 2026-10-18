@@ -321,7 +321,9 @@ def create_app(
 
     actions_store = ActionStore(memory) if memory is not None else None
     action_limiter = Limiter(10, 300)
-    ask_memory = AskMemory(memory) if memory is not None else None
+    ask_memory = AskMemory(memory, port) if memory is not None else None
+    # a recall makes no model call, so it has its own, wider, limit: it only reads the graph
+    recall_limiter = Limiter(30, 2_000)
 
     @app.post("/api/v1/ask")
     def ask(body: AskRequest, request: Request) -> dict[str, Any]:
@@ -334,10 +336,16 @@ def create_app(
             if not body.actor or body.day is None or body.actor not in tenant.roles:
                 raise HTTPException(422, "a perspective question needs a known actor and a day")
             perspective = Perspective(body.actor, tenant.roles[body.actor], body.day)
+        asked = Asked.of(tenant.key, body.kind, body.question, actor, day)
+        if ask_memory is not None and body.session is not None:
+            if not recall_limiter.allow(_caller(request)):
+                raise HTTPException(429, "rate limit reached; try again shortly")
+            recalled = ask_memory.recall(body.session, asked, tenant.graph)
+            if recalled is not None:
+                return recalled.response(tenant.key, body.kind)
         if not limiter.allow(_caller(request)):
             raise HTTPException(429, "rate limit reached; try again shortly")
         question = Question("live", body.kind, body.question, actor=actor, day=day)
-        asked = Asked.of(tenant.key, body.kind, body.question, actor, day)
         # the Ask path alone may propose actions, and only where actions are enabled; the benchmark never does
         acting = (
             ActingToolbox(
@@ -363,6 +371,7 @@ def create_app(
             "tenant": tenant.key,
             "kind": body.kind,
             "answer": run.answer,
+            "recalled": False,
             **({"proposed_action": _action_json(proposed)} if proposed is not None else {}),
             "proof": {"queries": [{"name": q.name, "params": q.params, "sha256": q.sha256} for q in tools.queries]},
             "trace": {
