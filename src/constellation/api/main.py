@@ -14,7 +14,7 @@ from constellation.api.app import Settings, Tenant, create_app
 from constellation.brain.roles import roles_from_config
 from constellation.graph.read import ReadPort
 from constellation.live.loop import start as start_live_sync
-from constellation.live.run import sync_job
+from constellation.live.run import embedder_from_env, sync_job
 from constellation.memory.store import MemoryStore
 
 # https only, plus localhost for development; a wildcard would let any page call the API with the visitor's network
@@ -80,6 +80,7 @@ def create() -> FastAPI:
         llm_factory=_llm_factory(env),
         memory=MemoryStore(db, tenant="apex"),
         real_sink=real_sink_from_env(env),
+        embedder=embedder_from_env(env),
         repo=env.get("ACTIONS_REPO", "simon-derock/constellation"),
     )
 

@@ -8,6 +8,8 @@ from constellation.graph.read import ReadPort
 _MAX_QUERIES = 50
 _MAX_TEXT = 512
 _MAX_LIST = 64
+# a query embedding is part of a proof: it is the only input a vector search has, so it must be replayable
+_MAX_VECTOR = 1_024
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,7 +55,13 @@ def _plain(value: object) -> object:
         and all(isinstance(v, str) and len(v) <= _MAX_TEXT for v in value)
     ):
         return value
-    raise ValueError("replay parameters must be plain numbers, strings or lists of strings")
+    if (
+        isinstance(value, list)
+        and 0 < len(value) <= _MAX_VECTOR
+        and all(isinstance(v, int | float) and not isinstance(v, bool) for v in value)
+    ):
+        return value
+    raise ValueError("replay parameters must be plain numbers, strings, lists of strings or numeric vectors")
 
 
 def replay(port: ReadPort, graph: str, queries: Sequence[ProofQuery]) -> ReplayReport:

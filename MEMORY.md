@@ -77,3 +77,5 @@ scripts/gate.sh                         # full chain, same as CI
 uv run pytest -m integration            # FalkorDB testcontainer tests only
 uv run python tools/traceability.py --strict   # release gate
 ```
+- FalkorDB `algo.betweenness` memory scales with `samplingSize`: 100000 on 347 people exhausted 3 GB (exit 137); keep it just above the node count. PageRank, WCC and reads leave no residue.
+- FalkorDB container restarts reload the last SAVE: run `SAVE` after every load, or the features built since are lost.

@@ -18,7 +18,7 @@ class _NoGraph(ReadPort):
 
 def contract() -> list[dict[str, Any]]:
     async def run() -> list[dict[str, Any]]:
-        tools = await build_server(_NoGraph(), "brain:none").list_tools()
+        tools = await build_server(_NoGraph(), "brain:none", live_graph="brain:none-live").list_tools()
         return sorted(
             (
                 {

@@ -14,7 +14,19 @@ from constellation.ingest.build_apex import build
 
 pytestmark = pytest.mark.integration
 GRAPH = "brain:apex-mcp"
-TOOLS = {"who_could_see", "owner_as_of", "counterfactual", "absence", "escalation_path"}
+TOOLS = {
+    "who_could_see",
+    "owner_as_of",
+    "counterfactual",
+    "absence",
+    "escalation_path",
+    "live_search",
+    "live_central_people",
+    "live_bridge_people",
+    "live_path",
+    "live_item_history",
+    "live_state_as_of",
+}
 
 
 @pytest.fixture(scope="module")
@@ -23,7 +35,7 @@ def server(falkordb: FalkorDB) -> FastMCP:
         pytest.skip("pinned Apex data not fetched")
     falkordb.select_graph(GRAPH).query("MATCH (n) DETACH DELETE n")
     build(falkordb, GRAPH, Path("data/raw/apex"), Path("pins/datasets.json"))
-    return build_server(ReadPort(falkordb), GRAPH)
+    return build_server(ReadPort(falkordb), GRAPH, live_graph="brain:live-none")
 
 
 def call(server: FastMCP, tool: str, args: dict[str, Any]) -> dict[str, Any]:

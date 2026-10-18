@@ -22,7 +22,11 @@ from constellation.agents.planner import solve
 from constellation.agents.toolbox import Perspective, Toolbox
 from constellation.api.catalogue import prove
 from constellation.api.mcp import build_server
+from constellation.api.projection import VIEWS, build_graph, view_by_id
+from constellation.graph.catalogue import cypher
 from constellation.graph.read import ReadPort
+from constellation.live.embed import Embedder
+from constellation.live.search import hybrid_search
 from constellation.memory.store import ConflictError, MemoryStore
 from constellation.proof import ProofQuery, replay
 
@@ -133,9 +137,11 @@ def create_app(
     memory: MemoryStore | None = None,
     real_sink: Sink | None = None,
     repo: str = "",
+    embedder: Embedder | None = None,
 ) -> FastAPI:
     default = next(iter(settings.tenants.values()))
-    mcp_app = build_server(port, default.graph).http_app(path="/")
+    live_graph = next((t.graph for t in settings.tenants.values() if t.live), None)
+    mcp_app = build_server(port, default.graph, live_graph, embedder).http_app(path="/")
     app = FastAPI(title="Constellation", version="0.1.0", lifespan=mcp_app.lifespan)
     limiter = Limiter(settings.asks_per_minute, settings.asks_per_day)
     app.add_middleware(
@@ -235,6 +241,77 @@ def create_app(
     def live_item(tenant: str, item: Annotated[str, Query(min_length=3, max_length=120)]) -> dict[str, Any]:
         history, proof = block("live_item_history", live_tenant(tenant).graph, {"item": item})
         return {"history": history, "proof": {"queries": [proof]}}
+
+    def tenant_for(kind: str) -> Tenant | None:
+        return next((t for t in settings.tenants.values() if t.live == (kind == "live")), None)
+
+    @app.get("/api/v1/graph/views")
+    def graph_views() -> dict[str, Any]:
+        return {
+            "views": [
+                {"id": v.id, "title": v.title, "hint": v.hint, "tenant": t.key}
+                for v in VIEWS
+                if (t := tenant_for(v.tenant)) is not None
+            ]
+        }
+
+    @app.get("/api/v1/graph")
+    def graph_view(view: Annotated[str, Query(min_length=1, max_length=40)]) -> dict[str, Any]:
+        # a picture of the graph is a set of catalogue queries: its nodes and edges are exactly their rows, and the
+        # proof lists them, so what is drawn can be replayed
+        try:
+            chosen = view_by_id(view)
+        except KeyError as err:
+            raise HTTPException(422, "unknown view") from err
+        tenant = tenant_for(chosen.tenant)
+        if tenant is None:
+            raise HTTPException(422, "this deployment has no graph for that view")
+        rows: list[Any] = []
+        proof: list[dict[str, Any]] = []
+        for name, params in chosen.steps:
+            result = port.run(tenant.graph, cypher(name), params)
+            rows.extend(result.rows)
+            proof.append({"name": name, "params": params, "sha256": result.sha256})
+        try:
+            nodes, edges = build_graph(rows)
+        except ValueError as err:
+            raise HTTPException(503, str(err)) from err
+        meta = {"id": chosen.id, "title": chosen.title, "hint": chosen.hint, "tenant": tenant.key}
+        return {"view": meta, "nodes": nodes, "edges": edges, "proof": {"queries": proof}}
+
+    search_limiter = Limiter(30, 2_000)
+
+    @app.get("/api/v1/live/search")
+    def live_search(
+        request: Request, tenant: str, q: Annotated[str, Query(min_length=1, max_length=200)]
+    ) -> dict[str, Any]:
+        graph = live_tenant(tenant).graph
+        if not search_limiter.allow(_caller(request)):
+            raise HTTPException(429, "rate limit reached; try again shortly")
+        found = hybrid_search(port, graph, q, embedder, k=10)
+        return {
+            "hits": [{"item": h.item, "title": h.title, "repo": h.repo, "via": list(h.via)} for h in found.hits],
+            "vector_used": found.vector_used,
+            "proof": {"queries": found.proof},
+        }
+
+    @app.get("/api/v1/live/people")
+    def live_people(tenant: str) -> dict[str, Any]:
+        graph = live_tenant(tenant).graph
+        central, p1 = block("live_central_people", graph, {"limit": 10})
+        bridges, p2 = block("live_bridge_people", graph, {"limit": 10})
+        components, p3 = block("live_components", graph, {})
+        return {"central": central, "bridges": bridges, "components": components, "proof": {"queries": [p1, p2, p3]}}
+
+    @app.get("/api/v1/live/path")
+    def live_path(
+        tenant: str,
+        a: Annotated[str, Query(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")],
+        b: Annotated[str, Query(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")],
+    ) -> dict[str, Any]:
+        rows, proof = block("live_path", live_tenant(tenant).graph, {"from": a, "to": b})
+        found = rows[0] if rows else {"path": [], "hops": None}
+        return {"path": found["path"], "hops": found["hops"], "proof": {"queries": [proof]}}
 
     @app.post("/api/v1/ask")
     def ask(body: AskRequest, request: Request) -> dict[str, Any]:

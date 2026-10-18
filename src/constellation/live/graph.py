@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from falkordb import FalkorDB
+from redis.exceptions import ResponseError
 
 from constellation.graph.write import WritePort
 from constellation.live.model import Change, Claim, Item, Plan
@@ -12,6 +13,7 @@ _INDEXES = (
     ("Item", "repo"),
     ("Claim", "id"),
     ("Person", "alias"),
+    ("Repo", "name"),
     ("Change", "id"),
     ("Cursor", "repo"),
 )
@@ -63,7 +65,8 @@ class LiveGraph:
             "UNWIND $rows AS r MERGE (i:Item {id: r.id}) "
             "SET i.repo = r.repo, i.number = r.number, i.kind = r.kind, i.title = r.title, "
             "i.created = r.created, i.updated = r.updated "
-            "MERGE (p:Person {alias: r.author}) MERGE (i)-[:AUTHORED_BY]->(p)",
+            "MERGE (p:Person {alias: r.author}) MERGE (i)-[:AUTHORED_BY]->(p) "
+            "MERGE (o:Repo {name: r.repo}) MERGE (i)-[:IN_REPO]->(o) MERGE (p)-[:ACTIVE_IN]->(o)",
             [
                 {
                     "id": i.doc_id,
@@ -119,4 +122,53 @@ class LiveGraph:
                 {"id": _change_id(c), "item": c.item, "predicate": c.predicate, "old": c.old, "new": c.new, "at": c.at}
                 for c in plan.changes
             ],
+        )
+
+    def backfill_repos(self) -> None:
+        # items loaded before repositories were nodes get the same edges a fresh sync gives them
+        self._db.select_graph(self._graph).query(
+            "MATCH (i:Item)-[:AUTHORED_BY]->(p:Person) MERGE (o:Repo {name: i.repo}) "
+            "MERGE (i)-[:IN_REPO]->(o) MERGE (p)-[:ACTIVE_IN]->(o)"
+        )
+
+    def build_collaboration(self) -> None:
+        # people who open items in the same repository are linked both ways, weighted by how many they share; the
+        # algorithms below (PageRank, betweenness, components, paths) run over this projection
+        g = self._db.select_graph(self._graph)
+        for low, high in (("a", "b"), ("b", "a")):
+            g.query(
+                "MATCH (a:Person)-[:ACTIVE_IN]->(r:Repo)<-[:ACTIVE_IN]-(b:Person) WHERE a.alias < b.alias "
+                f"WITH {low} AS x, {high} AS y, count(r) AS shared MERGE (x)-[c:COLLABORATES]->(y) SET c.repos = shared"
+            )
+
+    def ensure_search_indexes(self, dim: int) -> None:
+        # HNSW over title embeddings and a full-text index over titles, both inside the engine; idempotent
+        g = self._db.select_graph(self._graph)
+        statements = (
+            "CREATE VECTOR INDEX FOR (n:Item) ON (n.embedding) "
+            f"OPTIONS {{dimension: {int(dim)}, similarityFunction: 'cosine', M: 16, "
+            "efConstruction: 200, efRuntime: 100}",
+            "CALL db.idx.fulltext.createNodeIndex('Item', 'title')",
+        )
+        for statement in statements:
+            try:
+                g.query(statement)
+            except ResponseError as err:
+                if "already" not in str(err).lower() and "exist" not in str(err).lower():
+                    raise
+
+    def pending_embeddings(self, limit: int) -> list[tuple[str, str]]:
+        # an item needs a vector when it has none, or when its title is no longer the one the vector was made from
+        rows = self.query(
+            "MATCH (i:Item) WHERE i.embedding IS NULL OR i.embedded_for <> i.title RETURN i.id, i.title "
+            "ORDER BY i.id LIMIT $limit",
+            {"limit": limit},
+        )
+        return [(str(r[0]), str(r[1])) for r in rows]
+
+    def set_embeddings(self, rows: Sequence[tuple[str, str, Sequence[float]]]) -> None:
+        self._write.merge(
+            self._graph,
+            "UNWIND $rows AS r MATCH (i:Item {id: r.id}) SET i.embedding = vecf32(r.vector), i.embedded_for = r.title",
+            [{"id": i, "title": t, "vector": list(v)} for i, t, v in rows],
         )

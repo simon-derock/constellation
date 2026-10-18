@@ -338,3 +338,20 @@ def test_the_daily_cap_on_real_actions_is_a_429(port: ReadPort, falkordb: Falkor
         )
         codes.append(out.status_code)
     assert codes == [200, 429]
+
+
+def test_the_apex_graph_views_draw_real_nodes_and_their_proof_replays(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    assert {v["id"] for v in client.get("/api/v1/graph/views").json()["views"]} == {"apex-organisation", "apex-causal"}
+    body = client.get("/api/v1/graph", params={"view": "apex-organisation"}).json()
+    types = {n["type"] for n in body["nodes"]}
+    assert {"Person", "Domain", "Role"} <= types
+    assert {e["relationship_type"] for e in body["edges"]} >= {"OWNS", "HAS_ROLE", "ESCALATED_TO"}
+    replayed = client.post("/api/v1/replay", json={"tenant": "apex", "queries": body["proof"]["queries"]}).json()
+    assert replayed["all_match"] is True
+
+
+def test_the_causal_view_is_bounded_and_connects_events(port: ReadPort, tmp_path: Path) -> None:
+    body = make_client(port, tmp_path).get("/api/v1/graph", params={"view": "apex-causal"}).json()
+    assert 0 < len(body["edges"]) <= 260
+    assert {n["type"] for n in body["nodes"]} == {"Event"}
