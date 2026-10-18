@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +34,8 @@ class Tenant:
     title: str
     # actor name -> role, resolved server-side so a caller cannot claim a role
     roles: Mapping[str, str]
+    # a tenant fed by the live GitHub sync rather than a simulated company; it answers through /live, not /ask
+    live: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,9 +198,49 @@ def create_app(
             "proof": {"queries": [{"name": "ownership_all", "params": {}, "sha256": proof["sha256"]}]},
         }
 
+    def live_tenant(key: str) -> Tenant:
+        tenant = tenant_of(key)
+        if not tenant.live:
+            raise HTTPException(422, "this tenant has no live graph")
+        return tenant
+
+    def block(name: str, graph: str, params: dict[str, str | int]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        proof = prove(port, graph, name, params)
+        columns = [str(c) for c in proof["columns"]]
+        rows = [dict(zip(columns, row, strict=True)) for row in proof["rows"]]
+        return rows, {"name": name, "params": params, "sha256": proof["sha256"]}
+
+    @app.get("/api/v1/live")
+    def live_view(tenant: str, at: Annotated[int | None, Query(ge=0, le=4_102_444_800)] = None) -> dict[str, Any]:
+        graph = live_tenant(tenant).graph
+        summary, p1 = block("live_summary", graph, {})
+        changes, p2 = block("live_recent_changes", graph, {"limit": 25})
+        repos, p3 = block("live_repos", graph, {"limit": 12})
+        fresh, p4 = block("live_freshness", graph, {})
+        proof = [p1, p2, p3, p4]
+        as_of: list[dict[str, Any]] | None = None
+        if at is not None:
+            as_of, p5 = block("live_state_as_of", graph, {"at": at})
+            proof.append(p5)
+        return {
+            "summary": summary,
+            "changes": changes,
+            "repos": repos,
+            "freshness": fresh[0],
+            "as_of": as_of,
+            "proof": {"queries": proof},
+        }
+
+    @app.get("/api/v1/live/item")
+    def live_item(tenant: str, item: Annotated[str, Query(min_length=3, max_length=120)]) -> dict[str, Any]:
+        history, proof = block("live_item_history", live_tenant(tenant).graph, {"item": item})
+        return {"history": history, "proof": {"queries": [proof]}}
+
     @app.post("/api/v1/ask")
     def ask(body: AskRequest, request: Request) -> dict[str, Any]:
         tenant = tenant_of(body.tenant)
+        if tenant.live:
+            raise HTTPException(422, "this tenant answers through the live view, not questions")
         perspective: Perspective | None = None
         actor, day = body.actor or "", body.day or 0
         if body.kind == "PERSPECTIVE":
