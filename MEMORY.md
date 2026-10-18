@@ -4,10 +4,11 @@ Present tense of the build. Design: [`PLAN_SPEC.md`](PLAN_SPEC.md) · contract: 
 Read this first, update it last. Under 80 lines, no secrets, no narrative.
 
 ## Now
-- **Wave:** W2 in progress — MCP tools, toolbox, ReAct agent, official scorers; first full EpistemicBench run recorded in `results/raw/`
-- **Gate:** `scripts/gate.sh` green · 130+ tests · traceability 5/38 · commits only via `scripts/ship.sh`
+- **Built:** all three tracks have working code: Apex brain + proofs (T3), memory fleet + actions (T2/T1), API + MCP, web (Ask · Ownership · Live · Act · Scoreboard), deploy bundle, live GitHub tenant (`brain:falkordb`)
+- **Gate:** `scripts/gate.sh` green · 480+ Python tests, 50+ web tests · commits only via `scripts/ship.sh`
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
-- **Last commit verified in CI:** see Actions; every push runs the full gate
+- **Snapshot:** release `snapshot-20261018` (`brain.rdb.gz`, 6.5 MB, both graphs); image boots in 8 s, 127 MB
+- **Blocked:** Workers AI free neurons exhausted (not reset 40 min after 00:00 UTC); Cohere trial key at its monthly cap. EpistemicBench has 48 of 78 rows; resume with `--resume`.
 
 ## Acceptance criteria
 | AC | Status | Evidence |
@@ -23,19 +24,17 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `python -m constellation.ingest.fetch apex` verifies every byte.
 
 ## Next, in order
-1. Read the full 78-question run; root-cause each miss (general fix + regression test, never a question patch); write `docs/audits/`.
-2. FastAPI app: `/ask` with proof + trace, `/proofs/{id}/replay`, MCP mounted; Dockerfile for Render.
-3. Live FalkorDB tenant (GitHub sync), memory graphs, web app, README results, video.
-4. Redwood: Kaggle job (fetch-and-verify, Qwen3-Embedding bulk embed) — cut first if behind (see INTERNAL.md).
-4. Kaggle job skeleton: Redwood fetch-and-verify inside the kernel.
+1. Finish EpistemicBench when a model answers: `run_epistemic --resume results/raw/epistemic-20261018T003054.jsonl`; publish summary; audit.
+2. Read the Redwood dense Kaggle result; publish with an audit; amend ADR-0004 (bge-base, not Qwen3).
+3. Deploy: Render blueprint (needs user: `GITHUB_TOKEN`, `PSEUDONYM_KEY` = local `.env` value, `APPROVER_KEY`), Vercel, CNAME, keep-warm pings.
+4. Video, README results, PLAN_SPEC accuracy pass, blog post.
 
 ## Decisions (one line each; `docs/adr/0001–0004` carry the why)
 - Engine 4.22.x primary; 6.0.x smoke only.
 - Hosting: Vercel web + Render free (FalkorDB + API, 512 MB) + GitHub Releases snapshots + D1 journal; Redwood as recorded runs.
-- Embeddings: Qwen3-Embedding-0.6B — Kaggle for corpus, Workers AI for queries (1,024 dims, probed 17 Oct).
-- LLMs: Workers AI live; Cohere second model and judge.
+- Embeddings: bge-base-en-v1.5 on Kaggle GPU for the Redwood corpus (compute budget); Qwen3 stays the plan for live queries.
+- LLMs: Workers AI (gpt-oss-20b) live; Cohere second model; both free tiers cap daily/monthly, so the demo caches presets.
 - Agent actions file `agent-action` issues in this repo; no sandbox repo.
-- Commits land green; red runs are recorded in commit bodies.
 
 ## Apex facts (profiled 17 Oct)
 - 22,530 rows · 15 columns: `day date timestamp actors tags artifact_ids dept is_incident is_external facts category doc_id doc_type title body`.
@@ -51,17 +50,25 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 - A named mechanism decides cause/effect types (one type pair each); type guesses beside it only hid links.
 - Tools validate event ids and return a correctable error; a silent "unlinked" let the model invent ids.
 
+## Live tenant (FalkorDB's public GitHub)
+- Keeps titles, states, labels, timestamps; never bodies. People are `adjective-noun-hex` HMAC aliases; bots dropped.
+- A claim is `(item, predicate, value)` with `[valid_from, valid_to)`; history is derived on first sight, later changes supersede and never overwrite.
+- Claim ids anchor to source time, not sync time, so replays converge. `since` is inclusive: boundary items re-seen, plan is idempotent.
+- `PSEUDONYM_KEY` must stay identical between the snapshot and the deployment.
+
 ## Do not repeat
 - HF Gradio/Docker Spaces are paid; ZeroGPU and Voyage free tiers cannot carry a request path.
 - FalkorDB Cloud free: 100 MB, deleted after 7 idle days.
-- Cohere trial: 1,000 calls/month, all endpoints.
-- Render free cannot run an embedding model.
+- Cohere trial: 1,000 calls/month, all endpoints. Render free cannot run an embedding model.
 - `graph` is a reserved Mermaid word; `test_*` helper names get collected by pytest.
 - Apex timestamps drift from the simulation day both ways; the day is the only clock (ADR-0005).
 - Causal rules take the first match: run events chronologically (19→21/21 links).
 - `_vendor/` is generated and sha256-pinned; regenerate with `tools/vendor_orgforge.py`, never edit.
 - Workers AI rejects null fields echoed back from replies (HTTP 400 on turn two): echo only role/content/tool_calls.
 - FalkorDB client inlines params as text: strip C0 controls (NUL in 2 Apex summaries broke the load).
+- FalkorDB `RESTORE` fails under a different key name (name is inside the dump): copy graphs under the same name.
+- `>> .env` appends onto an unterminated last line and corrupts it: check with `awk -F=` (names and lengths only).
+- `uv run --with torch` pulls GBs; never. Do not run Docker builds while the gate runs.
 - `falkordb` is untyped: keep it behind `ReadPort`; mypy override is scoped to that module.
 
 ## Commands

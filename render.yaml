@@ -11,9 +11,24 @@ services:
     envVars:
       - key: ALLOWED_ORIGINS
         value: https://constellation.philipsimonderock.com
+      # the snapshot is public and pinned by hash, so it is a plain value rather than a secret
       - key: SNAPSHOT_URL
-        sync: false
+        value: https://github.com/simon-derock/constellation/releases/download/snapshot-20261018/brain.rdb.gz
       - key: SNAPSHOT_SHA256
+        value: bf20e3fcc374186f1bd361b63319709d84a91f7470fc397fd73301500496219f
+      - key: HOST
+        value: 0.0.0.0
+      - key: LIVE_SYNC_SECONDS
+        value: "900"
+      # read-only token for public repositories; without it the live tenant serves the snapshot unchanged
+      - key: GITHUB_TOKEN
+        sync: false
+      # must equal the key the snapshot was built with, or aliases would change on the next sync
+      - key: PSEUDONYM_KEY
+        sync: false
+      - key: APPROVER_KEY
+        sync: false
+      - key: GITHUB_ACTIONS_TOKEN
         sync: false
       - key: CLOUDFLARE_ACCOUNT_ID
         sync: false
