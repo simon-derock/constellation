@@ -1,9 +1,10 @@
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from constellation.agents.epistemic import LLM
-from constellation.agents.llm import ChatClient, LLMError, ModelLock, Transport, https_transport
+from constellation.agents.llm import ChatClient, LLMError, ModelLock, Reply, Transport, Usage, https_transport
 
 _TEMPERATURE, _MAX_TOKENS = 0.0, 1_024
 
@@ -98,14 +99,47 @@ def candidates(env: Mapping[str, str]) -> tuple[Provider, ...]:
     return configured[:1] if env.get("MODEL") else configured
 
 
+# the provider cannot serve right now (quota, credentials, outage, a request over its token budget), as opposed to
+# this request being malformed; after one of these the next question starts on another provider
+_UNAVAILABLE = frozenset({401, 402, 403, 413, 429, 500, 502, 503, 504})
+_REST_SECONDS = 600.0
+
+
+class _Reporting:
+    def __init__(self, inner: ChatClient, rest: Callable[[], None]) -> None:
+        self._inner, self._rest = inner, rest
+
+    @property
+    def usage(self) -> list[Usage]:
+        return self._inner.usage
+
+    def chat(self, messages: Sequence[dict[str, Any]], tools: Sequence[dict[str, Any]]) -> Reply:
+        try:
+            return self._inner.chat(messages, tools)
+        except LLMError as err:
+            if err.status in _UNAVAILABLE:
+                self._rest()
+            raise
+
+
 def llm_factory(
-    env: Mapping[str, str], transport: Transport = https_transport, sleep: Callable[[float], None] = time.sleep
+    env: Mapping[str, str],
+    transport: Transport = https_transport,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
 ) -> Callable[[], LLM]:
     chain = candidates(env)
+    # when each provider may be tried again; a question keeps the provider it started on, so this is read only
+    # between questions, and the question that finds a provider out of quota still fails rather than switch models
+    rests_until: dict[str, float] = {}
 
     def make() -> LLM:
         if not chain:
             raise LLMError("no model credentials configured")
-        return chain[0].client(env, chain[0].lock(env.get("MODEL", "")), transport, sleep)
+        now = clock()
+        # best first among the providers not resting; if all are, the one that rests the least
+        chosen = min(chain, key=lambda p: max(rests_until.get(p.name, 0.0), now))
+        client = chosen.client(env, chosen.lock(env.get("MODEL", "")), transport, sleep)
+        return _Reporting(client, lambda: rests_until.__setitem__(chosen.name, clock() + _REST_SECONDS))
 
     return make

@@ -14,7 +14,10 @@ _ATTEMPTS = 4
 
 
 class LLMError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int = 0) -> None:
+        super().__init__(message)
+        # the provider's final HTTP status; 0 when the call never got an HTTP answer
+        self.status = status
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,7 +120,7 @@ class ChatClient:
                 break
             # same model, exponential backoff: a run never changes model mid-question
             self.sleep(2.0**attempt)
-        raise LLMError(f"{self.lock.model} failed with HTTP {status}: {_provider_error(payload)}")
+        raise LLMError(f"{self.lock.model} failed with HTTP {status}: {_provider_error(payload)}", status)
 
     def _reply(self, payload: dict[str, Any], latency_ms: float) -> Reply:
         message = payload["choices"][0]["message"]
