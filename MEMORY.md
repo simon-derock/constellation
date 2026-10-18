@@ -9,7 +9,7 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 - **Engine:** FalkorDB `v4.22.1@sha256:b0bdcac2…80ae7a` · client `falkordb` 1.8.0
 - **Snapshot:** release `snapshot-20261018` (`brain.rdb.gz`, 6.5 MB, both graphs); image boots in 8 s, 127 MB
 - **Web:** premium redesign shipped (warm paper, Instrument Serif + Geist, grain, parallax ghost word, no blue/gradients); video assets in `video/` still use the old look and must be recaptured last
-- **Retrieval:** docs median 4,276 chars; the 2-passage dense run saw only 2,400 (83% of gold docs are longer). Full-coverage kernel `constellation-redwood-full` running; then `eval.rerank_eval` with Cohere `rerank-v4.0-pro` (cached; ~470 calls of the 1,000/month)
+- **Retrieval (see docs/audits/2026-10-18-redwood-retrieval-stack.md):** Cohere rerank is the lever (hit@10 0.738→0.881); passages, feedback, Qwen rewrites did not help; ceiling ~0.92. Kaggle GPU: pass `--accelerator NvidiaTeslaT4` or it queues for an hour
 - **Blocked:** Workers AI free neurons exhausted (not reset 40 min after 00:00 UTC); Cohere trial key at its monthly cap. EpistemicBench has 48 of 78 rows; resume with `--resume`.
 
 ## Acceptance criteria
