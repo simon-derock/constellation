@@ -1,0 +1,163 @@
+import hashlib
+import hmac
+from collections.abc import Mapping
+
+# about 64 x 64 words and a two-digit suffix: roughly a million aliases, so a few hundred contributors never collide
+ADJECTIVES = (
+    "amber",
+    "azure",
+    "bold",
+    "brisk",
+    "calm",
+    "clear",
+    "cobalt",
+    "coral",
+    "crisp",
+    "dawn",
+    "deep",
+    "dusk",
+    "eager",
+    "early",
+    "fair",
+    "fern",
+    "fleet",
+    "frost",
+    "gentle",
+    "glad",
+    "golden",
+    "grand",
+    "green",
+    "hazel",
+    "hushed",
+    "ivory",
+    "jade",
+    "keen",
+    "kind",
+    "lively",
+    "lucid",
+    "lunar",
+    "mellow",
+    "misty",
+    "noble",
+    "olive",
+    "pale",
+    "plain",
+    "proud",
+    "quick",
+    "quiet",
+    "rapid",
+    "rosy",
+    "russet",
+    "sable",
+    "sage",
+    "scarlet",
+    "serene",
+    "sharp",
+    "silver",
+    "sleek",
+    "slate",
+    "solar",
+    "steady",
+    "still",
+    "sunny",
+    "swift",
+    "tawny",
+    "teal",
+    "tidy",
+    "vivid",
+    "warm",
+    "wild",
+    "windy",
+    "wise",
+    "young",
+    "zesty",
+)
+
+NOUNS = (
+    "otter",
+    "heron",
+    "fox",
+    "lynx",
+    "finch",
+    "wren",
+    "marten",
+    "ibis",
+    "robin",
+    "stoat",
+    "swift",
+    "lark",
+    "newt",
+    "hare",
+    "crane",
+    "egret",
+    "gecko",
+    "hawk",
+    "ferret",
+    "kite",
+    "pike",
+    "raven",
+    "shrike",
+    "teal",
+    "vole",
+    "wolf",
+    "yak",
+    "badger",
+    "beaver",
+    "bison",
+    "bunting",
+    "condor",
+    "coyote",
+    "curlew",
+    "dingo",
+    "eagle",
+    "falcon",
+    "gannet",
+    "gibbon",
+    "grouse",
+    "jackal",
+    "jaguar",
+    "kestrel",
+    "kingfisher",
+    "lemur",
+    "linnet",
+    "magpie",
+    "mink",
+    "mole",
+    "osprey",
+    "owl",
+    "panda",
+    "pelican",
+    "plover",
+    "puffin",
+    "quail",
+    "seal",
+    "sparrow",
+    "stork",
+    "swan",
+    "tapir",
+    "thrush",
+    "toucan",
+    "walrus",
+    "weasel",
+)
+
+_KNOWN_BOTS = frozenset(
+    {"dependabot", "renovate", "github-actions", "coderabbitai", "copilot", "codecov", "ghost", "snyk-bot", "mergify"}
+)
+_MIN_KEY = 16
+
+
+def pseudonym(login: str, key: str) -> str:
+    # a keyed HMAC, not a plain hash: without the key, guessing a login and hashing it proves nothing
+    if len(key) < _MIN_KEY:
+        raise ValueError(f"the pseudonym key must be at least {_MIN_KEY} characters")
+    digest = hmac.new(key.encode(), login.lower().encode(), hashlib.sha256).digest()
+    return f"{ADJECTIVES[digest[0] % len(ADJECTIVES)]}-{NOUNS[digest[1] % len(NOUNS)]}-{digest[2]:02x}"
+
+
+def is_bot(user: Mapping[str, str] | None) -> bool:
+    # a deleted account and any automation are not people, and are never given an alias
+    if user is None:
+        return True
+    login = user.get("login", "").lower()
+    return user.get("type") == "Bot" or login.endswith("[bot]") or login in _KNOWN_BOTS
