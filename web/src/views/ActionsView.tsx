@@ -1,3 +1,4 @@
+import { Figures } from "../components/Figures";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { actionList, ApiError, approveAction, proposeAction, suggestions, type ActionRecord } from "../lib/api";
@@ -32,7 +33,8 @@ export function ActionsView() {
   const proposedHashes = new Set(recorded.data?.actions.map((a) => a.title));
 
   return (
-    <div className="page" data-ghost="Act">
+    <div className="page">
+      <Figures size="page" />
       <h1>What should happen next</h1>
       <p className="lede">Nothing runs until someone approves it, and every decision records who made it.</p>
 

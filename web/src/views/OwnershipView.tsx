@@ -1,3 +1,4 @@
+import { Figures } from "../components/Figures";
 import { useQuery } from "@tanstack/react-query";
 import { OwnershipChart } from "../components/OwnershipChart";
 import { TimeRail } from "../components/TimeRail";
@@ -6,7 +7,8 @@ import { ownership } from "../lib/api";
 export function OwnershipView() {
   const timeline = useQuery({ queryKey: ["ownership", "apex"], queryFn: () => ownership("apex") });
   return (
-    <div className="page" data-ghost="Owners">
+    <div className="page">
+      <Figures size="page" />
       <h1>Who owned what</h1>
       <p className="lede">Move the rail to any day. A handover day belongs to the new owner.</p>
       <TimeRail />

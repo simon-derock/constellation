@@ -1,3 +1,4 @@
+import { Figures } from "../components/Figures";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useAsOf } from "../asof";
@@ -43,7 +44,8 @@ export function AskView() {
   }
 
   return (
-    <div className="ask" data-ghost="Ask">
+    <div className="ask">
+      <Figures size="page" />
       <form onSubmit={submit} className="ask-form">
         <h1>Ask. Then check.</h1>
         <p className="lede">Every answer carries the queries behind it. Replay them and the seal must match.</p>

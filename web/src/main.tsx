@@ -1,6 +1,6 @@
-import "@fontsource/instrument-serif/400.css";
-import "@fontsource/instrument-serif/400-italic.css";
-import "@fontsource-variable/geist";
+import "@fontsource-variable/cormorant-garamond/wght.css";
+import "@fontsource-variable/cormorant-garamond/wght-italic.css";
+import "@fontsource-variable/manrope";
 import "@fontsource-variable/geist-mono";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";

@@ -1,3 +1,4 @@
+import { Figures } from "../components/Figures";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ProofPanel } from "../components/ProofPanel";
@@ -53,7 +54,8 @@ export function LiveView() {
   const sealKey = data?.proof.queries.map((q) => q.sha256).join("") ?? "";
 
   return (
-    <div className="page" data-ghost="Live">
+    <div className="page">
+      <Figures size="page" />
       <h1>FalkorDB, on any day</h1>
       <p className="lede">Every public issue and pull request, as it stood. People appear only as aliases.</p>
 
