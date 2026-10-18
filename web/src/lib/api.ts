@@ -24,6 +24,7 @@ export interface AskRequest {
   question: string;
   actor?: string;
   day?: number;
+  session?: string;
 }
 
 export interface AskResponse {
@@ -32,8 +33,33 @@ export interface AskResponse {
   answer: Record<string, unknown>;
   // present only when the agent proposed a follow-up; a person still has to approve it under Act
   proposed_action?: ActionRecord;
+  // true when the answer came from memory after its stored proof replayed identically; no model was called
+  recalled?: boolean;
   proof: { queries: ProofQuery[] };
   trace: Trace;
+}
+
+export interface MemoryTurn {
+  n: number;
+  role: "user" | "assistant";
+  content: string;
+  // an answer's turn carries the seal of its proof; a question's turn carries none
+  seal: string;
+}
+
+export interface LearnedFact {
+  question: string;
+  kind: Kind;
+  verdict: string;
+  support: number;
+  evidence: string[];
+}
+
+export interface MemoryView {
+  session: string;
+  turns: MemoryTurn[];
+  facts: LearnedFact[];
+  procedures: number;
 }
 
 export interface ReplayResponse {
@@ -142,6 +168,8 @@ const post = (body: unknown): RequestInit => ({
 });
 
 export const ask = (body: AskRequest) => request<AskResponse>("/api/v1/ask", post(body));
+export const memory = (tenant: string, session: string) =>
+  request<MemoryView>(`/api/v1/memory?tenant=${encodeURIComponent(tenant)}&session=${encodeURIComponent(session)}`);
 export const replay = (body: { tenant: string; queries: ProofQuery[] }) =>
   request<ReplayResponse>("/api/v1/replay", post(body));
 export const actors = (tenant: string) =>
