@@ -9,8 +9,8 @@ from typing import Any
 
 from falkordb import FalkorDB
 
-from constellation.agents.epistemic import Question
-from constellation.agents.llm import CohereChat, ModelLock, WorkersAI
+from constellation.agents.epistemic import AgentRun, Question
+from constellation.agents.llm import CohereChat, LLMError, ModelLock, WorkersAI
 from constellation.agents.planner import solve
 from constellation.agents.toolbox import Perspective, Toolbox
 from constellation.brain.roles import roles_from_config
@@ -40,7 +40,11 @@ def run_one(
     tools = Toolbox(port, graph, perspective)
     before = len(llm.usage)
     start = time.perf_counter()
-    agent_run = solve(llm, tools, q)
+    try:
+        agent_run = solve(llm, tools, q)
+    except LLMError as err:
+        # a provider refusal is the agent failing this question: it scores as no answer, and the reason is kept
+        agent_run = AgentRun(answer={}, stop_reason=f"model error: {err}")
     cone = tools._cone()[0] if perspective else None
     traj = trajectory(raw, tools.calls, agent_run, cone)
     usage = llm.usage[before:]

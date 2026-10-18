@@ -43,7 +43,7 @@ The spec lists 38 acceptance criteria. This file says what each one actually sho
 
 | ID | Measured | Target |
 |---|---|---|
-| AC-EV-01 | EpistemicBench: 48 of 78 questions recorded, accuracy 0.667 on those, 0 violations; not finished, not published | ≥0.99, 0 violations |
+| AC-EV-01 | EpistemicBench, all 78 questions on Command A: accuracy 0.705, combined 0.627, violation rate 0.000; published | ≥0.99, 0 violations |
 | AC-EV-02 | Not measured: the official EnterpriseRAG answer protocol was not run | ≥99% |
 | AC-EV-03 | Redwood hit@10 0.881 with Cohere rerank (95% CI 0.848–0.907) | Recall@10 ≥0.99 |
 | AC-T1-06 | Mean 3.42 model calls per question on the 48 recorded rows | ≤1.3 |

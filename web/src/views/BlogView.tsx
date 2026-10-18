@@ -78,12 +78,12 @@ export function BlogView() {
         0.92, so the 99% target is not reached. I have not claimed it.
       </p>
 
-      <h2>What is not finished</h2>
+      <h2>What is still short</h2>
       <p>
-        The agent's answers need a language model, and the model quota ran out before the full benchmark could finish.
-        So EpistemicBench is incomplete: 48 of 78 questions are recorded and nothing is published from it. The acceptance
-        criteria are tracked in the repository: 16 of 38 are met by tests, and the rest are marked partly met, not met,
-        not built, or cut, with reasons.
+        EpistemicBench ran in full on Cohere's Command A: 0.705 answer accuracy over 78 questions, and no lookup
+        returned anything outside the person's knowledge cone. Counterfactual questions are the weak track at 0.343,
+        and the 0.99 target is not reached. The acceptance criteria are tracked in the repository: 16 of 38 are met by
+        tests, and the rest are marked partly met, not met, not built, or cut, with reasons.
       </p>
 
       <h2>Try it</h2>

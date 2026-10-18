@@ -361,7 +361,16 @@ The reranker is the one large gain. Three things did not help and are recorded a
 
 ### Epistemic questions on the OrgForge simulation (EpistemicBench)
 
-Recorded so far: 48 of 78 questions, with the model that could answer them before its quota ran out. Accuracy on those 48 is 0.667 and the violation count is 0. The run is incomplete, so no score is published yet. The raw rows are in `results/raw/`.
+All 78 questions, answered by Cohere `command-a-03-2025` at temperature 0 and scored by the benchmark's own code:
+
+| Metric | Score |
+|---|---|
+| Answer accuracy | **0.705** |
+| Combined score | 0.627 |
+| Violation rate (PERSPECTIVE lookups that returned anything outside the person's knowledge cone) | **0.000** |
+| By track: PERSPECTIVE / SILENCE / COUNTERFACTUAL | 0.794 / 0.662 / 0.343 |
+
+Two questions ended in a provider error (HTTP 422) and are scored as unanswered. Counterfactual reasoning is the weakest track, and **the 0.99 target is not reached**. The summary and the per-question ledger are in [`results/published/epistemic-command-a.summary.json`](results/published/epistemic-command-a.summary.json) and `epistemic-command-a.jsonl`.
 
 ### Live graph
 

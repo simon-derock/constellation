@@ -1,0 +1,15 @@
+{
+  "model_lock": "fd2aa25fae0a55d2aa978a20e30e848878a29c9a658501e374586397c88a05bd",
+  "model": "command-a-03-2025",
+  "ledger": "results/published/epistemic-command-a.jsonl",
+  "questions": 78,
+  "accuracy": 0.7051,
+  "combined_score": 0.6268,
+  "violation_rate": 0.0,
+  "violation_adjusted_combined_score": 0.6268,
+  "by_track": {
+    "COUNTERFACTUAL": 0.3429,
+    "PERSPECTIVE": 0.794,
+    "SILENCE": 0.6619
+  }
+}
