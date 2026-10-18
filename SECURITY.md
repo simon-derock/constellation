@@ -7,7 +7,7 @@ Open a private advisory: **Security → Report a vulnerability** on this reposit
 - **Read path is read-only.** Agent and API reads go through `GRAPH.RO_QUERY`; the engine refuses writes even if a query template regresses (tested against the pinned engine).
 - **No string-built Cypher from input.** Values are always parameters; the only identifiers spliced into query text pass a strict allowlist pattern.
 - **Zero permission leaks** is an invariant with property tests, not a filter (PLAN_SPEC §16).
-- **Actions need approval**, are idempotent, and are capped per day.
+- **Actions need approval**, are idempotent, and are capped per day. The agent may propose one action per question, only on the API Ask path, and only citing the proofs of that run; the server refuses any other evidence, and a person still approves.
 - **Secrets** live only in platform secret stores; every commit in history is scanned with gitleaks in CI.
 - **Supply chain:** locked dependencies, SHA-pinned CI actions, `pip-audit --strict` on every push, weekly Dependabot updates.
 
