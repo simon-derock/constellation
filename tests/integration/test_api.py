@@ -85,6 +85,20 @@ def test_cors_admits_only_the_configured_origin(port: ReadPort, tmp_path: Path) 
 
 
 @pytest.mark.ac("AC-INV-03")
+@pytest.mark.ac("AC-T1-05")
+def test_an_answer_carries_the_full_trace(port: ReadPort, tmp_path: Path) -> None:
+    client = make_client(port, tmp_path)
+    body = {
+        "tenant": "apex",
+        "kind": "SILENCE",
+        "question": "Was a risk flag raised after the Day 8 incident with Jax?",
+    }
+    trace = client.post("/api/v1/ask", json=body).json()["trace"]
+    assert set(trace) >= {"stop_reason", "strategy_changes", "llm_calls", "prompt_tokens", "completion_tokens", "tools"}
+    assert all({"tool", "args", "artifacts", "latency_ms"} <= set(step) for step in trace["tools"])
+
+
+@pytest.mark.ac("AC-INV-03")
 def test_an_answer_carries_a_proof_that_replays(port: ReadPort, tmp_path: Path) -> None:
     client = make_client(port, tmp_path)
     body = {
