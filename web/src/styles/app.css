@@ -16,7 +16,7 @@ body {
   font-family: var(--font-ui);
   font-size: var(--step-0);
   font-weight: 400;
-  line-height: 1.7;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: clip;
@@ -31,7 +31,7 @@ body::after {
   pointer-events: none;
   opacity: var(--grain);
   mix-blend-mode: var(--grain-blend);
-  background-color: var(--gold);
+  background-color: var(--film-gold);
   background-blend-mode: soft-light;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   animation: grain 0.8s steps(6) infinite;
@@ -111,7 +111,7 @@ code {
   letter-spacing: 0.35em;
 }
 
-/* header */
+/* header: the reference's nav (max-w 84rem, px-8, py-8, text-xs, tracking 0.35em) */
 .top {
   position: relative;
   z-index: 20;
@@ -119,14 +119,21 @@ code {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 14px 24px;
+  gap: 0.75rem 1.5rem;
   max-width: 84rem;
   margin: 0 auto;
-  padding: 2rem var(--gutter);
+  padding: 2rem;
+}
+.top .mark,
+.top nav a {
+  line-height: 1rem;
 }
 .mark {
   font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-size: 1.125rem;
+  line-height: 1.75rem !important;
+  font-weight: 400;
+  text-transform: none;
   letter-spacing: 0.2em;
   color: var(--gold);
   text-decoration: none;
@@ -134,20 +141,25 @@ code {
 .top nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px clamp(16px, 3vw, 34px);
+  gap: 0.5rem 2rem;
 }
 .top nav a {
+  font-size: 0.75rem;
+  letter-spacing: 0.35em;
   text-decoration: none;
-  color: var(--ink-2);
-  transition: color 200ms ease;
+  color: var(--gold);
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .top nav a:hover,
 .top nav a[aria-current="page"] {
-  color: var(--gold);
+  color: var(--ink);
 }
 
 main {
   padding: 0 var(--gutter) 14vh;
+}
+main[data-view="home"] {
+  padding: 0;
 }
 
 @keyframes rise {
@@ -158,35 +170,70 @@ main {
   animation: rise 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-/* home */
+/* home: the reference page's own values (Tailwind rem sizes, spacings and tracking), with Constellation in the centre */
 .home {
-  max-width: 84rem;
-  margin: 0 auto;
+  min-height: 100vh;
+  overflow-x: clip;
 }
 .hero {
   position: relative;
-  display: flex;
-  min-height: 620px;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: 0 2rem;
 }
 .hero-copy {
   position: relative;
   z-index: 10;
-  transform: translate3d(0, calc(min(var(--y, 0), 600) * 0.22px), 0);
-  opacity: calc(1 - min(var(--y, 0), 600) / 800);
+  display: flex;
+  min-height: 620px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transform: translate3d(0, calc(min(var(--y, 0), 600) * 0.12px), 0);
+}
+.hero-copy .kicker {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.45em;
+  color: var(--gold);
 }
 .hero h1 {
-  margin-top: 1.25rem;
-  font-size: clamp(3.6rem, 12vw, 8rem);
+  margin: 1.25rem 0 0;
+  font-size: min(4.5rem, 14vw);
   font-weight: 300;
   line-height: 1;
+  letter-spacing: normal;
+}
+@media (min-width: 640px) {
+  .hero h1 {
+    font-size: 6rem;
+  }
 }
 .tagline {
   margin: 1.5rem 0 0;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   color: var(--ink-2);
+}
+.home-body {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+.eyebrow {
+  display: flex;
+  justify-content: center;
+  padding-top: 4rem;
+}
+.eyebrow span {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.45em;
+  color: color-mix(in oklab, var(--gold) 80%, transparent);
 }
 .quote {
   max-width: 42rem;
@@ -199,47 +246,53 @@ main {
   font-family: var(--font-display);
   font-style: italic;
   font-weight: 300;
-  font-size: clamp(1.9rem, 3.6vw, 2.5rem);
-  line-height: 1.3;
+  font-size: 1.875rem;
+  line-height: 1.375;
+}
+@media (min-width: 640px) {
+  .quote p {
+    font-size: 2.25rem;
+  }
 }
 .pillars {
   display: grid;
-  gap: 5rem 3rem;
+  gap: 5rem;
   padding: 6rem 0;
   text-align: center;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  max-width: 64rem;
-  margin: 0 auto;
 }
-@media (max-width: 760px) {
+@media (min-width: 640px) {
   .pillars {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3rem;
   }
 }
 .numeral {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   color: var(--gold);
 }
 .pillars h3 {
-  margin-top: 1.5rem;
+  margin: 1.5rem 0 0;
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 300;
 }
 .tick {
   width: 2rem;
   height: 1px;
-  background: var(--gold);
-  opacity: 0.5;
-  margin: 1.5rem auto;
+  margin: 1.5rem auto 0;
+  background: color-mix(in oklab, var(--gold) 50%, transparent);
 }
 .pillars p {
-  margin: 0;
-  font-size: 0.9rem;
+  margin: 1.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.625;
   color: var(--ink-2);
-  line-height: 1.8;
 }
-.figures-row {
+.stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2rem;
   max-width: 48rem;
   margin: 10rem auto;
@@ -248,13 +301,20 @@ main {
   border-bottom: 1px solid var(--rule);
   text-align: center;
 }
-.big {
+.stats .big {
   font-family: var(--font-display);
+  font-size: 3rem;
+  line-height: 1;
   font-weight: 300;
-  font-size: clamp(2.4rem, 6vw, 3.4rem);
-  line-height: 1.1;
   color: var(--gold);
-  font-variant-numeric: lining-nums;
+}
+.stats .cap {
+  margin-top: 0.75rem;
+  font-size: 10px;
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: 0.35em;
+  color: var(--ink-2);
 }
 .begin {
   max-width: 28rem;
@@ -262,20 +322,45 @@ main {
   padding: 10rem 0;
   text-align: center;
 }
-.begin h2 {
-  margin-top: 1.5rem;
-  font-size: clamp(2.6rem, 6vw, 3.4rem);
+.begin .kicker {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: 0.5em;
+  color: var(--gold);
 }
-.body-soft {
+.begin h2 {
+  margin: 1.5rem 0 0;
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 300;
+}
+.begin p.soft {
+  margin: 1.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.625;
   color: var(--ink-2);
-  font-size: 0.9rem;
-  line-height: 1.8;
-  margin: 1.5rem 0 2.5rem;
+}
+.begin a.enter {
+  display: inline-block;
+  margin-top: 2.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.35em;
+  color: var(--gold);
+  text-decoration: none;
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.begin a.enter:hover {
+  color: var(--ink);
 }
 .colophon {
   padding: 4rem 0;
   text-align: center;
-  font-size: 0.62rem;
+  font-size: 10px;
+  line-height: 1.5;
   text-transform: uppercase;
   letter-spacing: 0.4em;
   color: var(--ink-2);
@@ -347,7 +432,7 @@ main {
 }
 .rail-label output {
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 input[type="range"] {
@@ -520,7 +605,7 @@ button:disabled {
   padding: 13px 38px;
   font-family: var(--font-ui);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   text-decoration: none;
   letter-spacing: 0.3em;
@@ -623,7 +708,7 @@ button:disabled {
   max-width: 20rem;
 }
 .result {
-  font-weight: 520;
+  font-weight: 500;
   margin: 1em 0 0;
 }
 .result.ok {
@@ -653,7 +738,7 @@ button:disabled {
   }
 }
 .query-name {
-  font-weight: 560;
+  font-weight: 500;
 }
 .query-params,
 .query-hash {
@@ -663,11 +748,11 @@ button:disabled {
 }
 .match {
   color: var(--verified);
-  font-weight: 560;
+  font-weight: 500;
 }
 .differs {
   color: var(--mismatch);
-  font-weight: 560;
+  font-weight: 500;
 }
 .cost {
   margin: 3em 0 0;
@@ -740,7 +825,7 @@ button:disabled {
 .bar-text {
   font-size: 11.5px;
   fill: var(--paper);
-  font-weight: 520;
+  font-weight: 500;
   pointer-events: none;
 }
 .bar-former_owner + .bar-text {
@@ -762,7 +847,7 @@ button:disabled {
 .cursor-label {
   font-size: 12px;
   fill: var(--ink);
-  font-weight: 560;
+  font-weight: 500;
 }
 .now {
   display: grid;
@@ -784,7 +869,7 @@ button:disabled {
 }
 .now dd {
   margin: 0;
-  font-weight: 520;
+  font-weight: 500;
   text-align: right;
 }
 .now .nobody {
@@ -792,7 +877,7 @@ button:disabled {
 }
 .note {
   display: block;
-  font-weight: 380;
+  font-weight: 400;
   color: var(--ink-2);
   font-size: 0.75rem;
 }
@@ -918,7 +1003,7 @@ button:disabled {
   border-top: 1px solid var(--rule);
 }
 .repos b {
-  font-weight: 520;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 @media (max-width: 640px) {
@@ -960,7 +1045,7 @@ td {
   text-align: left;
   padding: 12px 0;
   border-top: 1px solid var(--rule);
-  font-weight: 380;
+  font-weight: 400;
 }
 thead th {
   color: var(--ink-2);
@@ -969,7 +1054,7 @@ thead th {
 td {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-weight: 520;
+  font-weight: 500;
 }
 
 /* act */
@@ -1061,18 +1146,5 @@ ul.actions .body {
   .top nav a {
     font-size: 0.62rem;
     letter-spacing: 0.24em;
-  }
-  .hero {
-    min-height: 70vh;
-  }
-  .quote {
-    padding: 6rem 0;
-  }
-  .figures-row {
-    margin: 5rem auto;
-    padding: 3rem 0;
-  }
-  .begin {
-    padding: 6rem 0;
   }
 }

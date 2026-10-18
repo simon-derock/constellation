@@ -14,11 +14,12 @@
   --held: oklch(0.22 0.02 255);
   --former: oklch(0.86 0.05 85);
   --focus: oklch(0.8 0.12 85);
+  --film-gold: oklch(0.72 0.06 85);
   --grain: 0.035;
   --grain-blend: multiply;
 
-  --font-display: "Cormorant Garamond Variable", "Cormorant Garamond", serif;
-  --font-ui: "Manrope Variable", "Manrope", sans-serif;
+  --font-display: "Cormorant Garamond", serif;
+  --font-ui: "Manrope", sans-serif;
   --font-data: "Geist Mono Variable", ui-monospace, monospace;
 
   --step--1: 0.875rem;

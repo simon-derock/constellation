@@ -48,7 +48,7 @@ export function App() {
           ))}
         </nav>
       </header>
-      <main>{active.view}</main>
+      <main data-view={id}>{active.view}</main>
     </AsOfProvider>
   );
 }
