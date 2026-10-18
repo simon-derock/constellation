@@ -21,6 +21,14 @@ export function ProofSheet({ response }: Props) {
         </ul>
       )}
 
+      {response.proposed_action && (
+        <p className="proposed">
+          <span className="label small">Proposed by the agent</span>
+          <span className="proposed-title">{response.proposed_action.title}</span>
+          <a href="#act">Review it under Act</a>
+        </p>
+      )}
+
       <ProofPanel tenant={response.tenant} queries={response.proof.queries} />
 
       <p className="cost">

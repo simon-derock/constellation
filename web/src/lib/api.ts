@@ -30,6 +30,8 @@ export interface AskResponse {
   tenant: string;
   kind: Kind;
   answer: Record<string, unknown>;
+  // present only when the agent proposed a follow-up; a person still has to approve it under Act
+  proposed_action?: ActionRecord;
   proof: { queries: ProofQuery[] };
   trace: Trace;
 }
@@ -69,6 +71,8 @@ export interface ActionRecord {
   result: Record<string, unknown> | null;
   evidence: ProofQuery[];
   created: string;
+  provenance: "rule" | "agent";
+  payload_hash: string;
 }
 
 export interface LiveStateRow {
