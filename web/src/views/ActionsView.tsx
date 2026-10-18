@@ -32,12 +32,9 @@ export function ActionsView() {
   const proposedHashes = new Set(recorded.data?.actions.map((a) => a.title));
 
   return (
-    <div className="page">
-      <h1>What the graph says should happen next</h1>
-      <p className="lede">
-        The agent reads ownership from the graph and proposes follow-ups. Nothing runs until someone approves it, and
-        every decision is recorded with who made it. A dry run shows what would happen without doing it.
-      </p>
+    <div className="page" data-ghost="Act">
+      <h1>What should happen next</h1>
+      <p className="lede">Nothing runs until someone approves it, and every decision records who made it.</p>
 
       <h2>Suggested</h2>
       {found.isPending && <p className="hint">Reading the graph…</p>}

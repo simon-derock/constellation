@@ -6,13 +6,9 @@ const pct = (value: number) => value.toFixed(3);
 export function ScoreboardView() {
   const runs = useQuery({ queryKey: ["scoreboard"], queryFn: scoreboard });
   return (
-    <div className="page">
+    <div className="page" data-ghost="Runs">
       <h1>Benchmark runs</h1>
-      <p className="lede">
-        Scored by the benchmark's own code. The headline number multiplies the combined score by one minus the share of
-        tool calls that reached outside what the person could see, squared, so a leak cannot be bought back with a good
-        answer.
-      </p>
+      <p className="lede">Scored by the benchmark's own code. A leak cannot be bought back with a good answer.</p>
       {runs.isPending && <p className="hint">Loading runs…</p>}
       {runs.error && (
         <p className="result bad" role="alert">
@@ -21,8 +17,7 @@ export function ScoreboardView() {
       )}
       {runs.data && runs.data.runs.length === 0 && (
         <div className="empty">
-          <h2>No runs are published yet</h2>
-          <p>A run appears here once it has finished and its results have been recorded.</p>
+          <p>A run appears here once it has finished.</p>
         </div>
       )}
       {runs.data?.runs.map((run, i) => (

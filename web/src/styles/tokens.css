@@ -1,42 +1,49 @@
 :root {
-  --paper: #eef1f4;
-  --sheet: #fbfcfd;
-  --ink: #14213d;
-  --ink-2: #44526e;
-  --rule: #c9d1dc;
-  --verified: #1b7f6b;
-  --interval: #3a6ea5;
-  --interval-soft: #a9c1db;
-  --stale: #b7791f;
-  --mismatch: #b4235e;
-  --focus: #2a55d6;
+  /* a warm off-white, never pure white: paper for the page, a shade lighter for fields */
+  --paper: #f2eee5;
+  --sheet: #f7f4ed;
+  --ink: #1e1b16;
+  --ink-2: #6f685d;
+  --rule: #ddd5c6;
+  --verified: #35574a;
+  --mismatch: #8a3a3a;
+  --stale: #9a7530;
+  /* ownership bars: the current owner in ink, earlier owners in a warm grey */
+  --held: #26221c;
+  --former: #d6cdbd;
+  --focus: #1e1b16;
+  --grain: 0.085;
+  --grain-blend: multiply;
 
-  --font-ui: "Bricolage Grotesque Variable", system-ui, sans-serif;
-  --font-doc: "Source Serif 4 Variable", Georgia, serif;
-  --font-data: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Geist Variable", system-ui, sans-serif;
+  --font-data: "Geist Mono Variable", ui-monospace, monospace;
 
   --step--1: 0.875rem;
-  --step-0: 1rem;
-  --step-1: 1.25rem;
-  --step-2: 1.65rem;
-  --step-3: 2.35rem;
-  --gutter: clamp(16px, 4vw, 40px);
-  --measure: 62ch;
+  --step-0: 1.0625rem;
+  --step-1: 1.3rem;
+  --step-2: clamp(1.9rem, 3.4vw, 2.6rem);
+  --step-3: clamp(3.4rem, 9vw, 6.6rem);
+  --gutter: clamp(24px, 9vw, 160px);
+  --col: 38rem;
+  --wide: 62rem;
 }
 
-/* the dark scheme is explicit about every token, so contrast is chosen rather than inverted */
+/* the dark scheme is warm too, and explicit about every token */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #0e1626;
-    --sheet: #152038;
-    --ink: #e8edf7;
-    --ink-2: #a5b1c8;
-    --rule: #2a3957;
-    --verified: #4fc3a8;
-    --interval: #7fa9d8;
-    --interval-soft: #39587f;
-    --stale: #e0a94a;
-    --mismatch: #f06fa0;
-    --focus: #8aa8ff;
+    --paper: #16130f;
+    --sheet: #1c1914;
+    --ink: #ece6d8;
+    --ink-2: #a39b8c;
+    --rule: #332e26;
+    --verified: #86ad98;
+    --mismatch: #d48585;
+    --stale: #c9a25a;
+    --held: #e4dccb;
+    --former: #3b352b;
+    --focus: #ece6d8;
+    --grain: 0.12;
+    --grain-blend: screen;
   }
 }

@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useAsOf } from "../asof";
+import { TimeRail } from "../components/TimeRail";
 import { ProofSheet } from "../components/ProofSheet";
 import { actors, ApiError, ask, type Kind } from "../lib/api";
 
@@ -42,12 +43,10 @@ export function AskView() {
   }
 
   return (
-    <div className="ask">
+    <div className="ask" data-ghost="Ask">
       <form onSubmit={submit} className="ask-form">
-        <h1>Ask a question. Get an answer you can check.</h1>
-        <p className="lede">
-          Every answer lists the exact queries behind it. Replay them and the proof seal must match, bit for bit.
-        </p>
+        <h1>Ask. Then check.</h1>
+        <p className="lede">Every answer carries the queries behind it. Replay them and the seal must match.</p>
 
         <fieldset className="modes">
           <legend>What are you asking?</legend>
@@ -70,6 +69,7 @@ export function AskView() {
                 </option>
               ))}
             </select>
+            <TimeRail />
             <span className="hint">Answers use only what this person could see by day {day}.</span>
           </div>
         )}
@@ -81,7 +81,7 @@ export function AskView() {
           id="question"
           value={question}
           maxLength={600}
-          rows={4}
+          rows={2}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Write it the way you would ask a colleague."
         />
@@ -94,7 +94,7 @@ export function AskView() {
         </div>
 
         <div className="examples">
-          <p className="hint">Or start from an example:</p>
+          <p className="hint">Or try</p>
           <ul>
             {EXAMPLES.map((example) => (
               <li key={example.text}>
@@ -127,8 +127,7 @@ export function AskView() {
         ) : (
           !asked.error && (
             <div className="empty">
-              <h2>Nothing asked yet</h2>
-              <p>Pick an example or write a question. The answer arrives with the queries that produced it.</p>
+              <p>Write a question, or pick one above.</p>
             </div>
           )
         )}

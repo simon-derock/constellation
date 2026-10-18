@@ -53,13 +53,9 @@ export function LiveView() {
   const sealKey = data?.proof.queries.map((q) => q.sha256).join("") ?? "";
 
   return (
-    <div className="page">
-      <h1>FalkorDB's GitHub, as it was on any day</h1>
-      <p className="lede">
-        Every issue and pull request in the public FalkorDB organisation, with each state it has held and when. People
-        appear only as aliases, and no text beyond titles is kept. Slide back to see the past, then replay the proof
-        to check the numbers against the graph.
-      </p>
+    <div className="page" data-ghost="Live">
+      <h1>FalkorDB, on any day</h1>
+      <p className="lede">Every public issue and pull request, as it stood. People appear only as aliases.</p>
 
       {view.isPending && <p className="hint">Loading the organisation…</p>}
       {view.error && !data && (

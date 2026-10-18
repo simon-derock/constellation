@@ -1,16 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { OwnershipChart } from "../components/OwnershipChart";
+import { TimeRail } from "../components/TimeRail";
 import { ownership } from "../lib/api";
 
 export function OwnershipView() {
   const timeline = useQuery({ queryKey: ["ownership", "apex"], queryFn: () => ownership("apex") });
   return (
-    <div className="page">
-      <h1>Who owned what, on any day</h1>
-      <p className="lede">
-        Each bar is one owner of one domain. Move the time rail to see who held each domain on a given day. A handover
-        day belongs to the new owner, and a gap means nobody was on record.
-      </p>
+    <div className="page" data-ghost="Owners">
+      <h1>Who owned what</h1>
+      <p className="lede">Move the rail to any day. A handover day belongs to the new owner.</p>
+      <TimeRail />
       {timeline.isPending && <p className="hint">Loading ownership…</p>}
       {timeline.error && (
         <p className="result bad" role="alert">
