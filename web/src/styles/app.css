@@ -221,56 +221,44 @@ main[data-view="home"] {
     font-size: 6rem;
   }
 }
-/* the Graph Hacks facts sit in the four corners of the intro, so the title stays alone in the middle */
+/* the hackathon credit sits in the title's own column, one quiet line under the promise */
 .hero {
   display: block;
   min-height: 420px;
 }
-.corner {
-  position: absolute;
-  max-width: 17rem;
-  font-size: 0.78rem;
-  line-height: 1.6;
+.event {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 0.9rem;
+  margin: 2.4rem auto 0;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--rule);
+}
+.event-mark {
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--gold);
+  transform: rotate(45deg);
+}
+.event-name {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.02rem;
   color: var(--ink-2);
 }
-.corner p {
-  margin: 0;
-}
-.corner p + p {
-  margin-top: 0.2rem;
-}
-.corner-head {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  line-height: 1.25;
-  color: var(--ink);
-  margin-bottom: 0.35rem !important;
-}
-.corner-sub {
+.event-by {
   font-family: var(--font-ui);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 500;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--ink-2);
-}
-.corner-tl {
-  top: 0.5rem;
-  left: 1.5rem;
+  color: var(--header-ink);
 }
 @media (max-width: 760px) {
   .hero {
     min-height: 0;
-  }
-  .corner {
-    position: static;
-    max-width: none;
-    margin: 1rem auto 0;
-    text-align: center !important;
-  }
-  .corner-tl {
-    top: auto;
-    left: auto;
   }
 }
 .signature {

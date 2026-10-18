@@ -28,13 +28,12 @@ export function HomeView() {
           <p className="tagline rise" style={{ animationDelay: ".3s" }}>
             Every answer, with its proof.
           </p>
-
+          <p className="event rise" style={{ animationDelay: ".45s" }}>
+            <span className="event-mark" aria-hidden="true" />
+            <span className="event-name">Graph Hacks: Context for AI Agents</span>
+            <span className="event-by">WeMakeDevs × FalkorDB</span>
+          </p>
         </div>
-
-        <aside className="corner corner-tl" aria-label="Graph Hacks">
-          <p className="corner-head">Graph Hacks: Context for AI Agents</p>
-          <p className="corner-sub">WeMakeDevs × FalkorDB</p>
-        </aside>
       </header>
 
       <div className="home-graph">
