@@ -144,7 +144,7 @@ def create_app(
 ) -> FastAPI:
     default = next(iter(settings.tenants.values()))
     live_graph = next((t.graph for t in settings.tenants.values() if t.live), None)
-    mcp_app = build_server(port, default.graph, live_graph, embedder).http_app(path="/")
+    mcp_app = build_server(port, default.graph, live_graph, embedder, memory).http_app(path="/")
     app = FastAPI(title="Constellation", version="0.1.0", lifespan=mcp_app.lifespan)
     limiter = Limiter(settings.asks_per_minute, settings.asks_per_day)
     app.add_middleware(

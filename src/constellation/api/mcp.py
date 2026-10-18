@@ -1,6 +1,7 @@
 from typing import Annotated, Any
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -8,17 +9,36 @@ from constellation.api.catalogue import Day, EventId, Name, Proof, prove
 from constellation.graph.read import ReadPort
 from constellation.live.embed import Embedder
 from constellation.live.search import hybrid_search
+from constellation.memory.store import NAME_PATTERN, SEMANTIC_PREFIX, ConflictError, MemoryStore
 
 Alias = Annotated[str, Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$", description="a person's alias")]
 Limit = Annotated[int, Field(ge=1, le=50)]
 Epoch = Annotated[int, Field(ge=0, le=4_102_444_800, description="epoch seconds")]
 Question = Annotated[str, Field(min_length=1, max_length=200)]
 
+# the same rule the store enforces on every graph name; the store re-checks it, so this is the early, readable refusal
+Principal = Annotated[
+    str,
+    Field(
+        min_length=1, max_length=63, pattern=f"^{NAME_PATTERN}$", description="whose memory graph: a-z, 0-9, - and _"
+    ),
+]
+FactKey = Annotated[str, Field(min_length=1, max_length=128, description="a fact's name")]
+FactValue = Annotated[str, Field(max_length=4_000)]
+Version = Annotated[int, Field(ge=0, le=1_000_000_000, description="0 creates; otherwise the version last read")]
+
+# an anonymous caller can address any principal, so the number of graphs it can make is bounded
+MAX_PRINCIPALS = 100
+
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
 
 
 def build_server(
-    port: ReadPort, graph: str, live_graph: str | None = None, embedder: Embedder | None = None
+    port: ReadPort,
+    graph: str,
+    live_graph: str | None = None,
+    embedder: Embedder | None = None,
+    memory: MemoryStore | None = None,
 ) -> FastMCP:
     # the graphs are bound here, from the authenticated tenants, never chosen by a tool argument
     mcp = FastMCP("constellation")
@@ -66,6 +86,8 @@ def build_server(
 
     if live_graph is not None:
         _live_tools(mcp, port, live_graph, embedder)
+    if memory is not None:
+        _memory_tools(mcp, memory)
     return mcp
 
 
@@ -119,3 +141,62 @@ def _live_tools(mcp: FastMCP, port: ReadPort, graph: str, embedder: Embedder | N
     )
     def live_state_as_of(at: Epoch) -> Proof:
         return prove(port, graph, "live_state_as_of", {"at": at})
+
+
+def _has_graph(memory: MemoryStore, principal: str, create: bool) -> bool:
+    # a read never makes a graph; a write makes one, up to the cap, so no caller can fill the host with clones
+    existing = memory.principals()
+    if principal in existing:
+        return True
+    if not create:
+        return False
+    if len(existing) >= MAX_PRINCIPALS:
+        raise ToolError(f"this server holds at most {MAX_PRINCIPALS} memory graphs; use an existing principal")
+    memory.provision(principal)
+    return True
+
+
+def _memory_tools(mcp: FastMCP, memory: MemoryStore) -> None:
+    # these write, but only through the store: tenant fixed by the server, graph name validated, every value a parameter
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
+        ),
+        description=(
+            "Write a fact into a principal's memory by compare-and-set. expected_version 0 creates the fact; "
+            "otherwise it must be the version last read. A stale version never overwrites: the result says "
+            "ok=false with the current version and value, so the caller can merge and retry. "
+            f"Names starting {SEMANTIC_PREFIX!r} belong to consolidation."
+        ),
+    )
+    def remember(principal: Principal, key: FactKey, value: FactValue, expected_version: Version) -> dict[str, Any]:
+        if key.startswith(SEMANTIC_PREFIX):
+            raise ToolError(f"names starting {SEMANTIC_PREFIX!r} are written only by consolidation")
+        _has_graph(memory, principal, create=True)
+        try:
+            return {"ok": True, "key": key, "version": memory.write_fact(principal, key, value, expected_version)}
+        except ConflictError:
+            current = memory.read_fact(principal, key)
+            version = current.ver if current else 0
+            return {
+                "ok": False,
+                "conflict": True,
+                "key": key,
+                "expected_version": expected_version,
+                "current_version": version,
+                "current_value": current.value if current else None,
+                "message": f"{key!r} is at version {version}, not {expected_version}: nothing was written",
+            }
+
+    @mcp.tool(
+        annotations=READ_ONLY,
+        description="Read a fact from a principal's memory with its version (found=false, version 0 when absent).",
+    )
+    def recall(principal: Principal, key: FactKey) -> dict[str, Any]:
+        fact = memory.read_fact(principal, key) if _has_graph(memory, principal, create=False) else None
+        return {
+            "key": key,
+            "found": fact is not None,
+            "value": fact.value if fact else None,
+            "version": fact.ver if fact else 0,
+        }

@@ -1,0 +1,70 @@
+[
+  {
+    "description": "Read a fact from a principal's memory with its version (found=false, version 0 when absent).",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "a fact's name",
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "principal": {
+          "description": "whose memory graph: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "principal",
+        "key"
+      ],
+      "type": "object"
+    },
+    "name": "recall",
+    "read_only": true
+  },
+  {
+    "description": "Write a fact into a principal's memory by compare-and-set. expected_version 0 creates the fact; otherwise it must be the version last read. A stale version never overwrites: the result says ok=false with the current version and value, so the caller can merge and retry. Names starting 'sem:' belong to consolidation.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "description": "0 creates; otherwise the version last read",
+          "maximum": 1000000000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "key": {
+          "description": "a fact's name",
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "principal": {
+          "description": "whose memory graph: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 4000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "principal",
+        "key",
+        "value",
+        "expected_version"
+      ],
+      "type": "object"
+    },
+    "name": "remember",
+    "read_only": false
+  }
+]
