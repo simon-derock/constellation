@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from constellation.agents.epistemic import LLM
 from constellation.agents.llm import ChatClient, LLMError, ModelLock, Transport, https_transport
 
+_TEMPERATURE, _MAX_TOKENS = 0.0, 1_024
+
 
 @dataclass(frozen=True, slots=True)
 class Provider:
@@ -15,6 +17,14 @@ class Provider:
     keys: tuple[str, ...]
     # environment name of the account id, for the one endpoint that carries it in its path
     account: str = ""
+    # models whose id starts with this take reasoning_effort=low (fewer hidden tokens against a per-minute budget);
+    # other models on the same host reject the field
+    reasoning_prefix: str = ""
+
+    def lock(self, model: str = "") -> ModelLock:
+        model = model or self.model
+        effort = "low" if self.reasoning_prefix and model.startswith(self.reasoning_prefix) else ""
+        return ModelLock(model, _TEMPERATURE, _MAX_TOKENS, effort)
 
     def token(self, env: Mapping[str, str]) -> str:
         return next((value for key in self.keys if (value := env.get(key, "").strip())), "")
@@ -53,7 +63,11 @@ PROVIDERS = (
         account="CLOUDFLARE_ACCOUNT_ID",
     ),
     Provider(
-        "groq", "https://api.groq.com/openai/v1/chat/completions", "openai/gpt-oss-120b", ("GROQ_KEY", "GROQ_API_KEY")
+        "groq",
+        "https://api.groq.com/openai/v1/chat/completions",
+        "openai/gpt-oss-120b",
+        ("GROQ_KEY", "GROQ_API_KEY"),
+        reasoning_prefix="openai/gpt-oss",
     ),
     Provider("cerebras", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b", ("CEREBRAS_API_KEY",)),
     Provider(
@@ -72,8 +86,6 @@ PROVIDERS = (
 
 BY_NAME = {p.name: p for p in PROVIDERS}
 
-_TEMPERATURE, _MAX_TOKENS = 0.0, 1_024
-
 
 def llm_factory(
     env: Mapping[str, str], transport: Transport = https_transport, sleep: Callable[[float], None] = time.sleep
@@ -83,7 +95,6 @@ def llm_factory(
     def make() -> LLM:
         if chosen is None:
             raise LLMError("no model credentials configured")
-        lock = ModelLock(env.get("MODEL") or chosen.model, _TEMPERATURE, _MAX_TOKENS)
-        return chosen.client(env, lock, transport, sleep)
+        return chosen.client(env, chosen.lock(env.get("MODEL", "")), transport, sleep)
 
     return make
