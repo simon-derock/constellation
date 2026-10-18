@@ -10,7 +10,7 @@ from typing import Any
 from falkordb import FalkorDB
 
 from constellation.agents.epistemic import Question
-from constellation.agents.llm import ModelLock, WorkersAI
+from constellation.agents.llm import CohereChat, ModelLock, WorkersAI
 from constellation.agents.planner import solve
 from constellation.agents.toolbox import Perspective, Toolbox
 from constellation.brain.roles import roles_from_config
@@ -83,15 +83,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=6379)
     parser.add_argument("--graph", default="brain:apex")
-    parser.add_argument("--model", default="@cf/openai/gpt-oss-20b")
+    parser.add_argument("--provider", choices=("workers", "cohere"), default="workers")
+    parser.add_argument("--model", help="defaults to the provider's pinned model")
     parser.add_argument("--questions", type=Path, default=Path("data/raw/apex/questions/eval_questions.jsonl"))
     parser.add_argument("--only", nargs="*", default=[], help="question ids to run")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--out", type=Path, default=Path("results/raw"))
     parser.add_argument("--resume", type=Path, help="continue an interrupted run from its ledger")
     args = parser.parse_args(argv)
-    lock = ModelLock(model=args.model, temperature=0.0, max_tokens=1_024)
-    llm = WorkersAI(os.environ["CLOUDFLARE_ACCOUNT_ID"], os.environ["CLOUDFLARE_API_TOKEN"], lock)
+    model = args.model or ("command-a-03-2025" if args.provider == "cohere" else "@cf/openai/gpt-oss-20b")
+    lock = ModelLock(model=model, temperature=0.0, max_tokens=1_024)
+    llm = (
+        CohereChat("", os.environ.get("COHERE_CHAT_KEY") or os.environ["CH"], lock)
+        if args.provider == "cohere"
+        else WorkersAI(os.environ["CLOUDFLARE_ACCOUNT_ID"], os.environ["CLOUDFLARE_API_TOKEN"], lock)
+    )
     port = ReadPort(FalkorDB(host=args.host, port=args.port))
     roles = roles_from_config(Path("third_party/orgforge/config.yaml"))
     questions = [json.loads(line) for line in args.questions.read_text().splitlines()]

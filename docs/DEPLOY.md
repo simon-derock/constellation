@@ -17,7 +17,9 @@ Everything runs on free tiers. Nothing here needs a credit card except the optio
 
 | Variable | Value |
 |---|---|
-| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | A Workers AI token (Workers AI → Read and Run) |
+| `COHERE_CHAT_KEY` | A Cohere key for Ask; when set it wins over Workers AI and pins `command-a-03-2025` |
+| `COHERE_KEY` | A Cohere key for query embeddings in live search; without it search uses the full-text index alone |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | A Workers AI token (Workers AI → Read and Run), the fallback model provider |
 | `GITHUB_TOKEN` | Fine-grained token, **public repositories, read-only**. Without it the live tenant serves the snapshot unchanged |
 | `PSEUDONYM_KEY` | The same value that built the snapshot. A different key changes every alias on the next sync |
 | `APPROVER_KEY` | Any long random string. Real action execution is off unless it is set |

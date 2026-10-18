@@ -44,12 +44,12 @@ class Reply:
     message: dict[str, Any]
 
 
-_ALLOWED_ORIGIN = "https://api.cloudflare.com/"
+_ALLOWED_ORIGINS = ("https://api.cloudflare.com/", "https://api.cohere.com/")
 
 
 def https_transport(url: str, headers: dict[str, str], body: bytes) -> tuple[int, dict[str, Any]]:
-    # enforced, not assumed: only the provider's https origin is ever opened, so file:// and other schemes cannot be
-    if not url.startswith(_ALLOWED_ORIGIN):
+    # enforced, not assumed: only the providers' https origins are ever opened, so file:// and other schemes cannot be
+    if not url.startswith(_ALLOWED_ORIGINS):
         raise LLMError("refusing to open a URL outside the provider origin")
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")  # noqa: S310
     try:
@@ -112,8 +112,17 @@ class WorkersAI:
         return Reply(content, calls, clean)
 
 
+@dataclass
+class CohereChat(WorkersAI):
+    # Cohere's OpenAI-compatible endpoint takes the same messages and tools and replies in the same shape, so only the
+    # address differs; the account is unused
+    @property
+    def _url(self) -> str:
+        return "https://api.cohere.com/compatibility/v1/chat/completions"
+
+
 def _provider_error(payload: dict[str, Any]) -> str:
     # provider messages describe the request, never our credentials; capped so a huge body cannot flood logs
-    errors = payload.get("errors") or [payload.get("error") or {}]
+    errors = payload.get("errors") or [payload.get("error") or payload.get("message") or {}]
     messages = [str(e.get("message", e)) if isinstance(e, dict) else str(e) for e in errors]
     return "; ".join(m for m in messages if m)[:300] or "no error body"

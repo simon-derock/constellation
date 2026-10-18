@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from constellation.agents.llm import LLMError, ModelLock, WorkersAI, https_transport
+from constellation.agents.llm import CohereChat, LLMError, ModelLock, WorkersAI, https_transport
 
 LOCK = ModelLock(model="@cf/openai/gpt-oss-20b", temperature=0.0, max_tokens=512)
 
@@ -94,3 +94,19 @@ def test_provider_errors_are_reported_without_the_token() -> None:
     with pytest.raises(LLMError, match="unexpected key 'audio'") as err:
         client(Scripted([(400, body)])).chat([], tools=[])
     assert "secret-token" not in str(err.value)
+
+
+def test_cohere_uses_its_compatible_endpoint_with_the_same_body() -> None:
+    transport = Scripted([OK])
+    llm = CohereChat("", "secret-token", LOCK, transport=transport, sleep=lambda _s: None)
+    llm.chat([{"role": "user", "content": "hi"}], tools=[])
+    url, headers, body = transport.requests[0]
+    assert url == "https://api.cohere.com/compatibility/v1/chat/completions"
+    assert headers["Authorization"] == "Bearer secret-token"
+    assert body["model"] == LOCK.model
+
+
+def test_cohere_errors_name_the_provider_message() -> None:
+    transport = Scripted([(400, {"message": "bad tool schema"})])
+    with pytest.raises(LLMError, match="bad tool schema"):
+        CohereChat("", "secret-token", LOCK, transport=transport, sleep=lambda _s: None).chat([], tools=[])

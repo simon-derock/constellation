@@ -34,3 +34,7 @@ services:
         sync: false
       - key: CLOUDFLARE_API_TOKEN
         sync: false
+      - key: COHERE_CHAT_KEY
+        sync: false
+      - key: COHERE_KEY
+        sync: false
