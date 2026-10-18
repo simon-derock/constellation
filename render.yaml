@@ -39,6 +39,9 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
+      # optional: groq, cerebras, gemini, openrouter, cohere or workers; unset uses the first key that is set
+      - key: MODEL_PROVIDER
+        sync: false
       - key: CLOUDFLARE_ACCOUNT_ID
         sync: false
       - key: CLOUDFLARE_API_TOKEN
