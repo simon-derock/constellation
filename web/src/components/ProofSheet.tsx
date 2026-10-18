@@ -11,6 +11,7 @@ export function ProofSheet({ response }: Props) {
   const described = describeAnswer(response.kind, response.answer);
   return (
     <article className="sheet" aria-label="Answer and proof">
+      {response.recalled && <p className="recalled">Recalled from memory · proof re-verified</p>}
       <h2 className="verdict">{described.verdict}</h2>
       {described.detail && <p className="detail">{described.detail}</p>}
       {described.evidence.length > 0 && (

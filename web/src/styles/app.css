@@ -986,6 +986,89 @@ button:disabled {
   text-align: center;
 }
 
+/* memory: a recalled answer says so quietly; the panel under it keeps the page's hairlines and small tracked labels */
+.recalled {
+  display: inline-block;
+  margin: 0 0 1.6em;
+  padding: 3px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+}
+.memory {
+  border-top: 1px solid var(--rule);
+  margin-top: clamp(48px, 9vh, 96px);
+  padding-top: clamp(32px, 6vh, 56px);
+  text-align: left;
+}
+.memory .label.small {
+  margin: 2.6em 0 1em;
+}
+.turns,
+.learned,
+.hashes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.turns {
+  font-size: var(--step--1);
+}
+.turns > li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+.turn-role {
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: var(--ink-2);
+}
+.learned > li {
+  padding: 18px 0;
+  border-top: 1px solid var(--rule);
+}
+.fact-verdict {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 300;
+  line-height: 1.15;
+  margin: 0;
+}
+.fact-question,
+.fact-meta {
+  margin: 0.4em 0 0;
+  font-size: var(--step--1);
+  color: var(--ink-2);
+}
+.hashes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 0.7em;
+}
+.memory > .hint:last-child {
+  margin-top: 2em;
+}
+@media (max-width: 640px) {
+  .recalled {
+    letter-spacing: 0.14em;
+  }
+  .turns > li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
 /* the seal: the one orchestrated motion */
 .bitgrid {
   width: 150px;

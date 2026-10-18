@@ -74,6 +74,18 @@ describe("ProofSheet", () => {
     expect(screen.queryByRole("link", { name: /Review it under Act/ })).not.toBeInTheDocument();
   });
 
+  it("says nothing about memory for a fresh answer", () => {
+    show();
+    expect(screen.queryByText(/Recalled from memory/)).not.toBeInTheDocument();
+  });
+
+  it("marks an answer recalled from memory, with no model calls", () => {
+    show({ ...response, recalled: true, trace: { ...response.trace, llm_calls: 0, prompt_tokens: 0, completion_tokens: 0 } });
+    expect(screen.getByText("Recalled from memory · proof re-verified")).toBeInTheDocument();
+    expect(screen.getByText(/0 model calls, 0 tokens/)).toBeInTheDocument();
+    expect(screen.getByText("No, it did not happen.")).toBeInTheDocument();
+  });
+
   it("verifies when the replay returns the same hashes", async () => {
     replyWith([H1, H2]);
     show();

@@ -32,7 +32,11 @@ const PROPOSED = {
 function show(reply: object) {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("/actors") ? { actors: [] } : reply), { status: 200 })),
+    vi.fn(async (url: string) => {
+      const empty = { session: "s", turns: [], facts: [], procedures: 0 };
+      const body = url.includes("/actors") ? { actors: [] } : url.includes("/memory") ? empty : reply;
+      return new Response(JSON.stringify(body), { status: 200 });
+    }),
   );
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const invalidate = vi.spyOn(client, "invalidateQueries");
@@ -67,6 +71,6 @@ describe("AskView", () => {
     await ask();
     expect(await screen.findByText("No, it did not happen.")).toBeInTheDocument();
     expect(screen.queryByText("Proposed by the agent")).not.toBeInTheDocument();
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["actions"] });
   });
 });

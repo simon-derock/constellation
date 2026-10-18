@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useAsOf } from "../asof";
+import { MemoryPanel } from "../components/MemoryPanel";
 import { TimeRail } from "../components/TimeRail";
 import { ProofSheet } from "../components/ProofSheet";
 import { actors, ApiError, ask, type Kind } from "../lib/api";
+import { sessionId } from "../lib/session";
 
 const TENANT = "apex";
 
@@ -29,10 +31,13 @@ export function AskView() {
   const [actor, setActor] = useState("");
   const people = useQuery({ queryKey: ["actors", TENANT], queryFn: () => actors(TENANT), staleTime: Infinity });
   const client = useQueryClient();
-  // a proposal made while answering belongs to the Act section on this same page, so its list is refreshed
+  const [session] = useState(sessionId);
+  // every answer changes what this session remembers; a proposal made while answering belongs to the Act section on
+  // this same page, so its list is refreshed too
   const asked = useMutation({
     mutationFn: ask,
     onSuccess: (response) => {
+      void client.invalidateQueries({ queryKey: ["memory"] });
       if (response.proposed_action) void client.invalidateQueries({ queryKey: ["actions"] });
     },
   });
@@ -45,6 +50,7 @@ export function AskView() {
       tenant: TENANT,
       kind,
       question: question.trim(),
+      session,
       ...(kind === "PERSPECTIVE" ? { actor: chosen, day } : {}),
     });
   }
@@ -138,6 +144,7 @@ export function AskView() {
             </div>
           )
         )}
+        <MemoryPanel tenant={TENANT} session={session} enabled={asked.isSuccess} />
       </section>
     </div>
   );
