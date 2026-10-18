@@ -30,6 +30,15 @@ services:
         sync: false
       - key: GITHUB_ACTIONS_TOKEN
         sync: false
+      # Ask needs any one model key (these four, Workers AI or Cohere below); docs/DEPLOY.md gives the priority
+      - key: GROQ_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
       - key: CLOUDFLARE_ACCOUNT_ID
         sync: false
       - key: CLOUDFLARE_API_TOKEN

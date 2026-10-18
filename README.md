@@ -410,15 +410,15 @@ gunzip -f data/brain.rdb.gz && mv data/brain.rdb data/dump.rdb
 docker run -d --name constellation-fdb -p 6379:6379 -v "$PWD/data:/data" falkordb/falkordb:v4.22.1 \
   redis-server --loadmodule /var/lib/falkordb/bin/falkordb.so --dir /data --dbfilename dump.rdb
 
-# 2. the API on :8000 (Ask needs COHERE_CHAT_KEY or a Workers AI token; everything else runs without a model)
+# 2. the API on :8000 (Ask needs one free model key, for example GROQ_KEY; everything else runs without a model)
 uv sync
-ALLOWED_ORIGINS=http://localhost:5173 uv run python -m constellation.api.main
+GROQ_KEY=... ALLOWED_ORIGINS=http://localhost:5173 uv run python -m constellation.api.main
 
 # 3. the web app on :5173
 cd web && npm ci && npm run dev
 ```
 
-The optional keys are listed in [docs/DEPLOY.md](docs/DEPLOY.md). Without them, search uses the full-text index alone and the live tenant serves the snapshot unchanged. The `deploy/` image bundles all three for a single-container host.
+Any one free, no-card key enables Ask: `GROQ_KEY`, `CEREBRAS_API_KEY`, `GEMINI_API_KEY` or `OPENROUTER_API_KEY` (or a Cohere or Workers AI trial key). The first one set answers; `MODEL_PROVIDER` picks one explicitly. The optional keys are listed in [docs/DEPLOY.md](docs/DEPLOY.md). Without them, search uses the full-text index alone and the live tenant serves the snapshot unchanged. The `deploy/` image bundles all three for a single-container host.
 
 ## AI assistance
 
