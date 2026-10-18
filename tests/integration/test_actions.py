@@ -131,3 +131,26 @@ def test_no_execution_without_an_approval_exists_and_tampering_is_detected(
     rogue = propose(store, title="Rogue")
     falkordb.select_graph(store.graph).query("MATCH (a:Action {id: $id}) SET a.status = 'executed'", {"id": rogue})
     assert store.unapproved_executions() == [rogue]
+
+
+@pytest.mark.ac("AC-INV-05")
+def test_provenance_is_recorded_and_defaults_to_a_rule_suggestion(falkordb: FalkorDB, store: ActionStore) -> None:
+    by_rule = store.propose(PAYLOAD["kind"], "From a rule", PAYLOAD["body"], EVIDENCE)
+    by_agent = store.propose(PAYLOAD["kind"], "From the agent", PAYLOAD["body"], EVIDENCE, provenance="agent")
+    assert (by_rule.provenance, by_agent.provenance) == ("rule", "agent")
+    assert store.get(by_agent.id).provenance == "agent"
+    falkordb.select_graph(store.graph).query("MATCH (a:Action {id: $id}) REMOVE a.provenance", {"id": by_rule.id})
+    assert store.get(by_rule.id).provenance == "rule"
+
+
+@pytest.mark.ac("AC-INV-05")
+def test_an_agent_proposal_walks_the_same_approval_flow_as_a_rule_suggestion(store: ActionStore) -> None:
+    action_id = store.propose(PAYLOAD["kind"], "Agent", PAYLOAD["body"], EVIDENCE, provenance="agent").id
+    sink = CountingSink()
+    with pytest.raises(ConflictError):
+        store.execute(action_id, sink, mode="real", daily_cap=5)
+    store.approve(action_id, "operator")
+    done = store.execute(action_id, DryRunSink("o/r"), mode="dry-run", daily_cap=5)
+    assert (done.status, done.approver, done.provenance) == ("executed", "operator", "agent")
+    assert sink.calls == 0
+    assert store.unapproved_executions() == []

@@ -29,13 +29,18 @@ class ActionRecord:
     result: dict[str, Any] | None
     evidence: list[dict[str, Any]]
     created: str
+    # who raised it: "rule" for a suggestion derived from the graph, "agent" for one the model proposed mid-answer
+    provenance: str
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
 
 
-_FIELDS = "a.id, a.kind, a.title, a.body, a.payload_hash, a.status, a.approver, a.mode, a.result, a.evidence, a.created"
+_FIELDS = (
+    "a.id, a.kind, a.title, a.body, a.payload_hash, a.status, a.approver, a.mode, a.result, a.evidence, a.created, "
+    "a.provenance"
+)
 
 
 def _record(row: list[object]) -> ActionRecord:
@@ -52,6 +57,7 @@ def _record(row: list[object]) -> ActionRecord:
         result=result,
         evidence=json.loads(str(row[9])) if row[9] else [],
         created=str(row[10]),
+        provenance="rule" if row[11] is None else str(row[11]),
     )
 
 
@@ -65,13 +71,16 @@ class ActionStore:
     def _q(self, cypher: str, params: Mapping[str, object] | None = None) -> list[list[object]]:
         return self._memory.query(_PRINCIPAL, cypher, dict(params or {}))
 
-    def propose(self, kind: str, title: str, body: str, evidence: list[dict[str, Any]]) -> ActionRecord:
+    def propose(
+        self, kind: str, title: str, body: str, evidence: list[dict[str, Any]], provenance: str = "rule"
+    ) -> ActionRecord:
         payload = json.dumps({"kind": kind, "title": title, "body": body}, sort_keys=True, separators=(",", ":"))
         digest = hashlib.sha256(payload.encode()).hexdigest()
         # the id comes from the payload, so proposing the same thing twice is one action, not two
         self._q(
             "MERGE (a:Action {id: $id}) ON CREATE SET a.kind = $kind, a.title = $title, a.body = $body, "
-            "a.payload_hash = $hash, a.status = 'proposed', a.evidence = $evidence, a.created = $now",
+            "a.payload_hash = $hash, a.status = 'proposed', a.evidence = $evidence, a.created = $now, "
+            "a.provenance = $provenance",
             {
                 "id": digest[:16],
                 "kind": kind,
@@ -80,6 +89,7 @@ class ActionStore:
                 "hash": digest,
                 "evidence": json.dumps(evidence, sort_keys=True),
                 "now": self._clock().isoformat(),
+                "provenance": provenance,
             },
         )
         return self.get(digest[:16])
