@@ -1,5 +1,82 @@
 [
   {
+    "description": "Claim a handoff as the agent it is addressed to. The state is checked against its recorded sha256, then exactly one claim wins: the winner gets claimed=true and the state; every other claimant gets claimed=false and the winner's name. A handoff for another agent, an unknown one and one whose state no longer matches its hash are errors, and none of them claims it.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "description": "an agent's name: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        },
+        "handoff_id": {
+          "description": "the handoff_id that handoff returned",
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "principal": {
+          "description": "whose memory graph: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "principal",
+        "handoff_id",
+        "agent"
+      ],
+      "type": "object"
+    },
+    "name": "claim",
+    "read_only": false
+  },
+  {
+    "description": "Hand a task from one agent to another through a principal's memory graph that both use. The JSON state is stored exactly as given, with its sha256. Pass the returned handoff_id to the target, which calls claim.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "principal": {
+          "description": "whose memory graph: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        },
+        "source": {
+          "description": "an agent's name: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        },
+        "state": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "target": {
+          "description": "an agent's name: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "principal",
+        "source",
+        "target",
+        "state"
+      ],
+      "type": "object"
+    },
+    "name": "handoff",
+    "read_only": false
+  },
+  {
     "description": "Consolidate a principal's episodes and return everything it has learned. A subject is learned only from two or more episodes that agree on the value and none that disagree; each learned fact comes with the evidence of the agreeing episodes and can be read back with recall under its key.",
     "input": {
       "additionalProperties": false,

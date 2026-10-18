@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import threading
 import uuid
 from typing import Any
@@ -304,6 +306,123 @@ def test_episodes_at_the_caps_are_stored(falkordb: FalkorDB, tenant: str) -> Non
     assert (fact["value"], fact["evidence_count"]) == ("é" * 4_000, 20)
 
 
+def hand_over(server: FastMCP, state: dict[str, Any], principal: str = "team") -> dict[str, Any]:
+    args = {"principal": principal, "source": "planner", "target": "executor", "state": state}
+    return call(server, "handoff", args)
+
+
+def claim(server: FastMCP, hid: str, agent: str = "executor", principal: str = "team") -> dict[str, Any]:
+    return call(server, "claim", {"principal": principal, "handoff_id": hid, "agent": agent})
+
+
+@pytest.mark.ac("AC-T2-03")
+def test_a_handoff_arrives_exactly_as_given_and_is_claimed_once(server: FastMCP) -> None:
+    state = {"task": "triage", "evidence": ["ENG-1", "slack-9"], "step": 3, "nested": {"é": [1, 2.5, None, True]}}
+    made = hand_over(server, state)
+    canonical = json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert made["state_sha256"] == hashlib.sha256(canonical.encode()).hexdigest()
+    assert (made["source"], made["target"]) == ("planner", "executor")
+    won = claim(server, made["handoff_id"])
+    assert won == {"claimed": True, "handoff_id": made["handoff_id"], "winner": "executor", "state": state}
+    lost = claim(server, made["handoff_id"])
+    assert lost == {"claimed": False, "handoff_id": made["handoff_id"], "winner": "executor"}
+
+
+@pytest.mark.ac("AC-T2-03")
+def test_exactly_one_of_many_concurrent_claimants_wins_and_the_rest_are_told_who_did(server: FastMCP) -> None:
+    state = {"step": 1}
+    hid = hand_over(server, state)["handoff_id"]
+    results: list[dict[str, Any]] = []
+
+    def contend(_: int) -> None:
+        results.append(claim(server, hid))
+
+    run_threads(16, contend)
+    assert len(results) == 16
+    winners = [r for r in results if r["claimed"]]
+    assert len(winners) == 1
+    assert winners[0]["state"] == state
+    assert all(r["winner"] == "executor" and "state" not in r for r in results if not r["claimed"])
+
+
+@pytest.mark.ac("AC-T2-03")
+def test_a_handoff_is_not_claimed_by_the_wrong_agent_and_stays_claimable(server: FastMCP) -> None:
+    hid = hand_over(server, {"step": 1})["handoff_id"]
+    with pytest.raises(ToolError, match="addressed to 'executor'"):
+        claim(server, hid, agent="intruder")
+    assert claim(server, hid)["claimed"] is True
+
+
+@pytest.mark.ac("AC-T2-03")
+def test_a_tampered_state_is_refused_and_does_not_count_as_a_claim(falkordb: FalkorDB, tenant: str) -> None:
+    server, store = serve(falkordb, tenant), MemoryStore(falkordb, tenant)
+    hid = hand_over(server, {"step": 1})["handoff_id"]
+    falkordb.select_graph(store.graph_name("team")).query("MATCH (h:Handoff) SET h.state = '{\"step\":99}'")
+    with pytest.raises(ToolError, match="hash"):
+        claim(server, hid)
+    assert store.claimed_by("team", hid) is None
+
+
+@pytest.mark.ac("AC-T2-05")
+def test_a_handoff_cannot_be_claimed_from_another_principal_or_another_tenant(falkordb: FalkorDB, tenant: str) -> None:
+    here, there = serve(falkordb, tenant), serve(falkordb, f"{tenant}x")
+    hid = hand_over(here, {"step": 1})["handoff_id"]
+    call(here, "remember", {"principal": "other", "key": "k", "value": "v", "expected_version": 0})
+    hand_over(there, {"step": 1})
+    for server, principal in [(here, "other"), (there, "team"), (here, "ghost")]:
+        with pytest.raises(ToolError, match="unknown handoff"):
+            claim(server, hid, principal=principal)
+    assert MemoryStore(falkordb, tenant).principals() == ["other", "team"]
+    assert claim(here, hid)["claimed"] is True
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"state": {"blob": "x" * 8_192}},
+        {"state": []},
+        {"state": "step 1"},
+        {"source": "Planner"},
+        {"source": ""},
+        {"target": "a b"},
+        {"target": "x" * 64},
+    ],
+)
+def test_handoff_refuses_oversize_non_json_or_badly_named_input_before_the_graph(
+    falkordb: FalkorDB, tenant: str, args: dict[str, Any]
+) -> None:
+    base = {"principal": "team", "source": "planner", "target": "executor", "state": {"step": 1}}
+    with pytest.raises(ToolError):
+        call(serve(falkordb, tenant), "handoff", {**base, **args})
+    assert MemoryStore(falkordb, tenant).principals() == []
+
+
+def test_a_state_that_is_not_strict_json_is_refused_even_when_a_caller_skips_the_wire(
+    falkordb: FalkorDB, tenant: str
+) -> None:
+    # over the wire a NaN becomes null; called in process it would reach the tool, which must not store it
+    args = {"principal": "team", "source": "planner", "target": "executor", "state": {"n": float("nan")}}
+    with pytest.raises(ToolError, match="plain JSON"):
+        asyncio.run(serve(falkordb, tenant).call_tool("handoff", args))
+    assert MemoryStore(falkordb, tenant).principals() == []
+
+
+def test_a_state_at_the_cap_is_carried_whole_and_one_character_more_is_refused(server: FastMCP) -> None:
+    # {"k":""} is 8 bytes of JSON around the string, and each é is two
+    state = {"k": "é" * ((8_192 - 8) // 2)}
+    assert len(json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode()) == 8_192
+    hid = hand_over(server, state)["handoff_id"]
+    assert claim(server, hid)["state"] == state
+    with pytest.raises(ToolError, match="the most a handoff carries"):
+        hand_over(server, {"k": "é" * ((8_192 - 8) // 2 + 1)})
+
+
+@pytest.mark.parametrize("hid", ["", "x", "A" * 32, "0" * 31, "0" * 33, "g" * 32, "0" * 32 + "\n"])
+def test_claim_refuses_a_handoff_id_that_is_not_one(server: FastMCP, hid: str) -> None:
+    with pytest.raises(ToolError):
+        claim(server, hid)
+
+
 @pytest.mark.ac("AC-INV-06")
 def test_memory_tools_are_absent_without_a_store_and_no_tool_chooses_a_graph_or_a_tenant(falkordb: FalkorDB) -> None:
     async def names(server: FastMCP) -> dict[str, Any]:
@@ -312,7 +431,7 @@ def test_memory_tools_are_absent_without_a_store_and_no_tool_chooses_a_graph_or_
 
     bare = asyncio.run(names(build_server(ReadPort(falkordb), "brain:none")))
     full = asyncio.run(names(serve(falkordb, "t0")))
-    memory_tools = {"remember", "recall", "record_episode", "learned"}
+    memory_tools = {"remember", "recall", "record_episode", "learned", "handoff", "claim"}
     assert not memory_tools & set(bare)
     assert memory_tools <= set(full)
     for tool in full.values():

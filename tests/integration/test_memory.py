@@ -85,9 +85,12 @@ def test_a_handoff_preserves_the_task_state_exactly_and_is_claimed_once(store: M
     store.provision("team")
     state = {"task": "triage", "evidence": ["ENG-1", "slack-9"], "step": 3}
     handoff = store.handoff("team", "planner", "executor", state)
+    assert store.claimed_by("team", handoff.hid) is None
     assert store.claim("team", handoff.hid, "executor") == state
     with pytest.raises(ConflictError):
         store.claim("team", handoff.hid, "executor")
+    assert store.claimed_by("team", handoff.hid) == "executor"
+    assert store.claimed_by("team", "no-such-handoff") is None
 
 
 @pytest.mark.ac("AC-T2-03")

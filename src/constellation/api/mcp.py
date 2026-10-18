@@ -1,3 +1,4 @@
+import json
 from typing import Annotated, Any
 
 from fastmcp import FastMCP
@@ -23,6 +24,11 @@ Principal = Annotated[
         min_length=1, max_length=63, pattern=f"^{NAME_PATTERN}$", description="whose memory graph: a-z, 0-9, - and _"
     ),
 ]
+Agent = Annotated[
+    str,
+    Field(min_length=1, max_length=63, pattern=f"^{NAME_PATTERN}$", description="an agent's name: a-z, 0-9, - and _"),
+]
+HandoffId = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$", description="the handoff_id that handoff returned")]
 FactKey = Annotated[str, Field(min_length=1, max_length=128, description="a fact's name")]
 FactValue = Annotated[str, Field(max_length=4_000)]
 Task = Annotated[str, Field(min_length=1, max_length=128, description="the task this episode came from")]
@@ -37,6 +43,8 @@ Version = Annotated[int, Field(ge=0, le=1_000_000_000, description="0 creates; o
 
 # an anonymous caller can address any principal, so the number of graphs it can make is bounded
 MAX_PRINCIPALS = 100
+# a handoff carries a task's state, not its data: the canonical JSON of the state stays within this many bytes
+MAX_STATE_BYTES = 8_192
 # the most evidence ids one learned fact returns; evidence_count says how many there are
 MAX_EVIDENCE_SHOWN = 50
 
@@ -166,6 +174,15 @@ def _has_graph(memory: MemoryStore, principal: str, create: bool) -> bool:
     return True
 
 
+def _within_cap(state: dict[str, Any]) -> None:
+    try:
+        size = len(json.dumps(state, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode())
+    except (TypeError, ValueError) as err:
+        raise ToolError(f"state must be plain JSON: {err}") from err
+    if size > MAX_STATE_BYTES:
+        raise ToolError(f"state is {size} bytes as JSON; the most a handoff carries is {MAX_STATE_BYTES}")
+
+
 def _memory_tools(mcp: FastMCP, memory: MemoryStore) -> None:
     # these write, but only through the store: tenant fixed by the server, graph name validated, every value a parameter
     @mcp.tool(
@@ -257,3 +274,43 @@ def _memory_tools(mcp: FastMCP, memory: MemoryStore) -> None:
                 for f in facts[:limit]
             ],
         }
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+        ),
+        description=(
+            "Hand a task from one agent to another through a principal's memory graph that both use. The JSON "
+            "state is stored exactly as given, with its sha256. Pass the returned handoff_id to the target, "
+            "which calls claim."
+        ),
+    )
+    def handoff(principal: Principal, source: Agent, target: Agent, state: dict[str, Any]) -> dict[str, Any]:
+        _within_cap(state)
+        _has_graph(memory, principal, create=True)
+        made = memory.handoff(principal, source, target, state)
+        return {"handoff_id": made.hid, "state_sha256": made.state_sha256, "source": source, "target": target}
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+        ),
+        description=(
+            "Claim a handoff as the agent it is addressed to. The state is checked against its recorded sha256, "
+            "then exactly one claim wins: the winner gets claimed=true and the state; every other claimant gets "
+            "claimed=false and the winner's name. A handoff for another agent, an unknown one and one whose "
+            "state no longer matches its hash are errors, and none of them claims it."
+        ),
+    )
+    def claim(principal: Principal, handoff_id: HandoffId, agent: Agent) -> dict[str, Any]:
+        if not _has_graph(memory, principal, create=False):
+            raise ToolError(f"unknown handoff {handoff_id}")
+        try:
+            state = memory.claim(principal, handoff_id, agent)
+        except KeyError as err:
+            raise ToolError(f"unknown handoff {handoff_id}") from err
+        except (PermissionError, ValueError) as err:
+            raise ToolError(str(err)) from err
+        except ConflictError:
+            return {"claimed": False, "handoff_id": handoff_id, "winner": memory.claimed_by(principal, handoff_id)}
+        return {"claimed": True, "handoff_id": handoff_id, "winner": agent, "state": state}

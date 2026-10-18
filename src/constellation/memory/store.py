@@ -233,6 +233,10 @@ class MemoryStore:
             raise ValueError("handoff state is not an object")
         return state
 
+    def claimed_by(self, principal: str, hid: str) -> str | None:
+        rows = self._q(principal, "MATCH (h:Handoff {hid: $hid}) RETURN h.claimed_by", {"hid": hid})
+        return None if not rows or rows[0][0] is None else str(rows[0][0])
+
     def record_episode(self, principal: str, task: str, subject: str, value: str, evidence: Sequence[str]) -> None:
         self._q(
             principal,
