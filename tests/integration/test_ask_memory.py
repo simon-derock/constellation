@@ -34,9 +34,17 @@ def port(falkordb: FalkorDB) -> ReadPort:
 
 
 class Rig:
-    def __init__(self, port: ReadPort, falkordb: FalkorDB, tmp_path: Path, llm: Scripted, graph: str = GRAPH) -> None:
+    def __init__(
+        self,
+        port: ReadPort,
+        falkordb: FalkorDB,
+        tmp_path: Path,
+        llm: Scripted,
+        graph: str = GRAPH,
+        memory_tenant: str = "",
+    ) -> None:
         self.llm, self.falkordb = llm, falkordb
-        self.memory = MemoryStore(falkordb, f"ask{uuid.uuid4().hex[:6]}")
+        self.memory = MemoryStore(falkordb, memory_tenant or f"ask{uuid.uuid4().hex[:6]}")
         settings = Settings(
             tenants={
                 "apex": Tenant("apex", graph, "Apex Athletics", {"Alex": "engineering_mobile", "Tom": "hr_ops"}),
@@ -51,6 +59,9 @@ class Rig:
 
     def ask(self, **overrides: Any) -> Any:
         return self.client.post("/api/v1/ask", json={**ASK, **overrides})
+
+    def view(self, session: str = SESSION, tenant: str = "apex") -> Any:
+        return self.client.get("/api/v1/memory", params={"tenant": tenant, "session": session})
 
     def graph(self, cypher: str) -> list[list[Any]]:
         result = self.falkordb.select_graph(self.memory.graph_name(PRINCIPAL)).query(cypher)
@@ -214,3 +225,82 @@ def test_an_answer_the_graph_did_not_decide_is_returned_but_not_remembered(
 
 def test_a_live_tenant_still_refuses_questions(rig: Rig) -> None:
     assert rig.ask(tenant="live").status_code == 422
+
+
+@pytest.mark.ac("AC-T2-01")
+def test_the_memory_view_shows_turns_what_was_learned_with_its_evidence_and_the_procedure_count(rig: Rig) -> None:
+    first = rig.ask().json()
+    seen = rig.view().json()
+    assert [(t["role"], t["content"]) for t in seen["turns"]] == [
+        ("user", QUESTION),
+        ("assistant", "No, it did not happen."),
+    ]
+    assert seen["turns"][1]["seal"] == seal([q["sha256"] for q in first["proof"]["queries"]])
+    assert seen["turns"][0]["seal"] == ""
+    assert (seen["facts"], seen["procedures"]) == ([], 1)
+    rig.ask()
+    [fact] = rig.view().json()["facts"]
+    assert fact["question"] == QUESTION
+    assert (fact["kind"], fact["verdict"], fact["support"]) == ("SILENCE", "No, it did not happen.", 2)
+    assert fact["evidence"] == sorted({q["sha256"] for q in first["proof"]["queries"]})
+
+
+@pytest.mark.ac("AC-T2-05")
+def test_a_session_never_sees_another_sessions_turns_or_the_questions_it_asked(rig: Rig) -> None:
+    other = "What happened on Day 8 after the incident with Jax?"
+    rig.ask()
+    rig.ask()
+    rig.ask(session=OTHER, question=other)
+    mine, theirs = rig.view().json(), rig.view(OTHER).json()
+    assert {t["content"] for t in mine["turns"]} == {QUESTION, "No, it did not happen."}
+    assert {t["content"] for t in theirs["turns"]} == {other, "No, it did not happen."}
+    # the fact learned from my two asks is the principal's, but it is shown only to a session that asked it
+    assert [f["question"] for f in mine["facts"]] == [QUESTION]
+    assert theirs["facts"] == []
+    nobody = rig.view("33333333-cccc-4ddd-8eee-444444444444").json()
+    assert (nobody["turns"], nobody["facts"]) == ([], [])
+    assert nobody["procedures"] == mine["procedures"] == 2
+
+
+@pytest.mark.ac("AC-T2-02")
+def test_a_session_is_restored_by_its_id_after_a_restart(
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path, rig: Rig
+) -> None:
+    rig.ask()
+    restarted = Rig(port, falkordb, tmp_path, Scripted([]), memory_tenant=rig.memory.tenant)
+    assert [t["role"] for t in restarted.view().json()["turns"]] == ["user", "assistant"]
+    assert restarted.ask(session=OTHER).json()["recalled"] is True
+    assert restarted.llm.calls == 0
+
+
+def test_viewing_memory_changes_nothing(rig: Rig) -> None:
+    rig.ask()
+    before = rig.graph("MATCH (n) RETURN count(n)"), rig.graph("MATCH (p:Procedure) RETURN p.verified_runs")
+    for _ in range(3):
+        assert rig.view().status_code == 200
+    assert (rig.graph("MATCH (n) RETURN count(n)"), rig.graph("MATCH (p:Procedure) RETURN p.verified_runs")) == before
+
+
+@pytest.mark.parametrize("session", ["", "short", "UPPERCASE-SESSION-ID", "x" * 65, "a b-12345678", "a;b-12345678"])
+def test_the_memory_view_refuses_a_malformed_session(rig: Rig, session: str) -> None:
+    assert rig.view(session).status_code == 422
+
+
+def test_the_memory_view_needs_a_session_and_a_known_askable_tenant(rig: Rig) -> None:
+    assert rig.client.get("/api/v1/memory", params={"tenant": "apex"}).status_code == 422
+    assert rig.view(tenant="nope").status_code == 422
+    assert rig.view(tenant="live").status_code == 422
+
+
+def test_the_memory_view_is_rate_limited_like_the_other_reads(rig: Rig) -> None:
+    codes = [rig.view().status_code for _ in range(31)]
+    assert codes == [200] * 30 + [429]
+
+
+def test_without_a_memory_store_ask_is_stateless_and_the_view_is_unavailable(port: ReadPort, tmp_path: Path) -> None:
+    settings = Settings(tenants={"apex": Tenant("apex", GRAPH, "Apex", {})}, allowed_origins=(), published=tmp_path)
+    llm = Scripted([PLAN, PLAN])
+    client = TestClient(create_app(port, settings, llm_factory=lambda: llm))
+    assert [client.post("/api/v1/ask", json=ASK).json()["recalled"] for _ in range(2)] == [False, False]
+    assert llm.calls == 2
+    assert client.get("/api/v1/memory", params={"tenant": "apex", "session": SESSION}).status_code == 503

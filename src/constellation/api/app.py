@@ -322,8 +322,8 @@ def create_app(
     actions_store = ActionStore(memory) if memory is not None else None
     action_limiter = Limiter(10, 300)
     ask_memory = AskMemory(memory, port) if memory is not None else None
-    # a recall makes no model call, so it has its own, wider, limit: it only reads the graph
-    recall_limiter = Limiter(30, 2_000)
+    # recalling and reading memory make no model call, so they have their own, wider, limit
+    memory_limiter = Limiter(30, 2_000)
 
     @app.post("/api/v1/ask")
     def ask(body: AskRequest, request: Request) -> dict[str, Any]:
@@ -338,7 +338,7 @@ def create_app(
             perspective = Perspective(body.actor, tenant.roles[body.actor], body.day)
         asked = Asked.of(tenant.key, body.kind, body.question, actor, day)
         if ask_memory is not None and body.session is not None:
-            if not recall_limiter.allow(_caller(request)):
+            if not memory_limiter.allow(_caller(request)):
                 raise HTTPException(429, "rate limit reached; try again shortly")
             recalled = ask_memory.recall(body.session, asked, tenant.graph)
             if recalled is not None:
@@ -394,6 +394,18 @@ def create_app(
         if ask_memory is not None and body.session is not None:
             ask_memory.learn(body.session, asked, run.results, run.answer, tools.queries)
         return response
+
+    @app.get("/api/v1/memory")
+    def memory_view(
+        request: Request, tenant: str, session: Annotated[str, Query(pattern=SESSION_PATTERN)]
+    ) -> dict[str, Any]:
+        if tenant_of(tenant).live:
+            raise HTTPException(422, "this tenant answers through the live view, not questions")
+        if ask_memory is None:
+            raise HTTPException(503, "memory is not enabled on this server")
+        if not memory_limiter.allow(_caller(request)):
+            raise HTTPException(429, "rate limit reached; try again shortly")
+        return ask_memory.view(session)
 
     @app.post("/api/v1/replay")
     def replay_proof(body: ReplayRequest) -> dict[str, Any]:

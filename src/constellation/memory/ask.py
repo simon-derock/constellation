@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import re
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Self
@@ -25,6 +26,8 @@ _DECISIVE = {
     "PERSPECTIVE": ("could_have_known", None),
     "COUNTERFACTUAL": ("counterfactual", "linked"),
 }
+_WINDOW = 20
+_MAX_EVIDENCE = 20
 # the sentences the web shows for a verdict, (false, true); a turn in memory reads the way the answer did
 _SAYS = {
     "SILENCE": ("No, it did not happen.", "Yes, it happened."),
@@ -46,10 +49,6 @@ class Asked:
         words = " ".join(re.sub(r"[\W_]+", " ", question.casefold()).split())
         scope = f"{actor}@{day}|" if kind == "PERSPECTIVE" else ""
         return cls(kind, question.strip(), f"{tenant}|{kind.lower()}|{scope}{words}")
-
-    @property
-    def qid(self) -> str:
-        return hashlib.sha256(self.key.encode()).hexdigest()
 
 
 def seal(hashes: Sequence[str]) -> str:
@@ -165,9 +164,61 @@ class AskMemory:
 
     def _record(self, session: str, asked: Asked, decided: bool, queries: Sequence[ProofQuery]) -> None:
         hashes = [q.sha256 for q in queries]
-        # a user turn carries its question's id, so a session can tell which learned facts are about its own questions
-        self._store.append_turn(PRINCIPAL, session, "user", asked.question, proof_id=asked.qid)
+        # a user turn's proof_id is its question key: how a session finds the facts learned about its own questions
+        self._store.append_turn(PRINCIPAL, session, "user", asked.question, proof_id=asked.key)
         self._store.append_turn(PRINCIPAL, session, "assistant", says(asked.kind, decided), proof_id=seal(hashes))
         canonical = json.dumps({_VERDICT[asked.kind]: decided}, separators=(",", ":"))
         self._store.record_episode(PRINCIPAL, asked.kind, asked.key, canonical, hashes)
         self._store.consolidate(PRINCIPAL)
+
+    def view(self, session: str) -> dict[str, Any]:
+        turns = self._store.recent(PRINCIPAL, session, _WINDOW)
+        # keyed by question, newest wording last: only what this session itself asked is looked up
+        asked = {t.proof_id: t.content for t in turns if t.role == "user"}
+        procedures = self._read("MATCH (p:Procedure) RETURN count(p)")
+        return {
+            "session": session,
+            "turns": [
+                {"n": t.n, "role": t.role, "content": t.content, "seal": t.proof_id if t.role == "assistant" else ""}
+                for t in turns
+            ],
+            "facts": self._learned(asked),
+            "procedures": int(str(procedures[0][0])),
+        }
+
+    def _read(self, cypher: str, params: Mapping[str, object] | None = None) -> Sequence[Sequence[object]]:
+        # through the read port, so the engine itself refuses a write from this path
+        return self._port.run(self.graph, cypher, params).rows
+
+    def _learned(self, asked: Mapping[str, str]) -> list[dict[str, Any]]:
+        if not asked:
+            return []
+        found = self._read(
+            "MATCH (f:Fact) WHERE f.id IN $ids RETURN f.subject, f.value", {"ids": [f"sem:{key}" for key in asked]}
+        )
+        facts = {str(row[0]): str(row[1]) for row in found}
+        episodes: dict[str, list[Sequence[object]]] = defaultdict(list)
+        for row in self._read(
+            "MATCH (e:Episode) WHERE e.subject IN $subjects RETURN e.subject, e.task, e.value, e.evidence",
+            {"subjects": list(asked)},
+        ):
+            episodes[str(row[0])].append(row)
+        learned = []
+        for key, question in asked.items():
+            rows = episodes.get(key, [])
+            # a fact stands only while every episode behind it still agrees with it
+            if key not in facts or not rows or {str(r[2]) for r in rows} != {facts[key]}:
+                continue
+            kind = str(rows[0][1])
+            hashes = sorted({str(h) for r in rows for h in json.loads(str(r[3]))})
+            decided = next(iter(json.loads(facts[key]).values()))
+            learned.append(
+                {
+                    "question": question,
+                    "kind": kind,
+                    "verdict": says(kind, bool(decided)),
+                    "support": len(rows),
+                    "evidence": hashes[:_MAX_EVIDENCE],
+                }
+            )
+        return learned
