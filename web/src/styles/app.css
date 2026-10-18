@@ -135,7 +135,7 @@ code {
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0.2em;
-  color: var(--gold);
+  color: var(--header-ink);
   text-decoration: none;
 }
 .top nav {
@@ -147,7 +147,7 @@ code {
   font-size: 0.75rem;
   letter-spacing: 0.35em;
   text-decoration: none;
-  color: var(--gold);
+  color: var(--header-ink);
   transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .top nav a:hover,
