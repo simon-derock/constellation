@@ -10,7 +10,7 @@ from typing import Any
 from falkordb import FalkorDB
 
 from constellation.agents.epistemic import AgentRun, Question
-from constellation.agents.llm import ChatClient, LLMError, ModelLock
+from constellation.agents.llm import ChatClient, LLMError
 from constellation.agents.planner import solve
 from constellation.agents.providers import BY_NAME
 from constellation.agents.toolbox import Perspective, Toolbox
@@ -97,7 +97,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--resume", type=Path, help="continue an interrupted run from its ledger")
     args = parser.parse_args(argv)
     provider = BY_NAME[args.provider]
-    lock = ModelLock(model=args.model or provider.model, temperature=0.0, max_tokens=1_024)
+    lock = provider.lock(args.model or "")
     try:
         llm = provider.client(os.environ, lock)
     except LLMError as err:

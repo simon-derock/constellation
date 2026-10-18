@@ -23,11 +23,19 @@ class ModelLock:
     model: str
     temperature: float
     max_tokens: int
+    # sent as reasoning_effort when set; only for models that accept the field, so it is part of the setup
+    reasoning_effort: str = ""
 
     @property
     def sha256(self) -> str:
-        blob = json.dumps([self.model, self.temperature, self.max_tokens], separators=(",", ":"))
-        return hashlib.sha256(blob.encode()).hexdigest()
+        # an unset effort leaves the hash as it was, so ledgers recorded before the field existed still match
+        parts = [
+            self.model,
+            self.temperature,
+            self.max_tokens,
+            *([self.reasoning_effort] if self.reasoning_effort else []),
+        ]
+        return hashlib.sha256(json.dumps(parts, separators=(",", ":")).encode()).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +98,8 @@ class ChatClient:
             "temperature": self.lock.temperature,
             "max_tokens": self.lock.max_tokens,
         }
+        if self.lock.reasoning_effort:
+            body["reasoning_effort"] = self.lock.reasoning_effort
         if tools:
             body["tools"], body["tool_choice"] = list(tools), "auto"
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}

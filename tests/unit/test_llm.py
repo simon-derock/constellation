@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import urllib.error
@@ -273,6 +274,37 @@ def test_each_providers_error_message_is_surfaced_without_the_token(name: str, b
         llm.chat([], tools=[])
     assert "secret-token" not in str(err.value)
     assert len(transport.requests) == 4
+
+
+def sent_body(provider: str, model: str = "") -> dict[str, Any]:
+    transport = Scripted([OK])
+    pinned = BY_NAME[provider]
+    variable = pinned.keys[0]
+    env = {variable: "secret-token", "CLOUDFLARE_ACCOUNT_ID": "acct"}
+    pinned.client(env, pinned.lock(model), transport).chat([], [TOOL])
+    return transport.requests[0][2]
+
+
+def test_groq_gpt_oss_runs_at_low_reasoning_effort() -> None:
+    body = sent_body("groq")
+    assert (body["model"], body["reasoning_effort"]) == ("openai/gpt-oss-120b", "low")
+    assert sent_body("groq", "openai/gpt-oss-20b")["reasoning_effort"] == "low"
+
+
+def test_groq_models_that_do_not_reason_are_not_sent_the_field() -> None:
+    assert "reasoning_effort" not in sent_body("groq", "llama-3.3-70b-versatile")
+
+
+@pytest.mark.parametrize("provider", ["cohere", "workers", "cerebras", "gemini", "openrouter"])
+def test_only_groq_is_sent_reasoning_effort(provider: str) -> None:
+    assert "reasoning_effort" not in sent_body(provider)
+
+
+def test_the_reasoning_effort_belongs_to_the_locked_setup() -> None:
+    plain = ModelLock("m", 0.0, 512)
+    # recorded before the field existed: the fingerprint must not move
+    assert plain.sha256 == hashlib.sha256(b'["m",0.0,512]').hexdigest()
+    assert ModelLock("m", 0.0, 512, "low").sha256 != plain.sha256
 
 
 def test_groq_takes_its_key_from_either_variable() -> None:
