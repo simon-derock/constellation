@@ -219,3 +219,99 @@ def test_the_legacy_ch_variable_still_names_the_cohere_key() -> None:
     transport = Scripted([OK])
     llm_factory({"CH": "secret-token"}, transport, sleep=lambda _s: None)().chat([], tools=[])
     assert transport.requests[0][1]["Authorization"] == "Bearer secret-token"
+
+
+# name, token variable, address, pinned default model
+FREE_TIERS = [
+    ("groq", "GROQ_KEY", "https://api.groq.com/openai/v1/chat/completions", "openai/gpt-oss-120b"),
+    ("cerebras", "CEREBRAS_API_KEY", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b"),
+    (
+        "gemini",
+        "GEMINI_API_KEY",
+        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "gemini-3.5-flash-lite",
+    ),
+    (
+        "openrouter",
+        "OPENROUTER_API_KEY",
+        "https://openrouter.ai/api/v1/chat/completions",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+    ),
+]
+TOOL = {"type": "function", "function": {"name": "f", "parameters": {"type": "object"}}}
+
+
+@pytest.mark.parametrize(("name", "variable", "url", "model"), FREE_TIERS)
+def test_each_free_provider_gets_its_address_token_and_pinned_model(
+    name: str, variable: str, url: str, model: str
+) -> None:
+    transport = Scripted([OK])
+    lock = ModelLock(BY_NAME[name].model, temperature=0.0, max_tokens=512)
+    BY_NAME[name].client({variable: "secret-token"}, lock, transport).chat([{"role": "user", "content": "hi"}], [TOOL])
+    sent_url, headers, body = transport.requests[0]
+    assert sent_url == url
+    assert headers == {"Authorization": "Bearer secret-token", "Content-Type": "application/json"}
+    assert (body["model"], body["temperature"], body["max_tokens"]) == (model, 0.0, 512)
+    assert (body["tools"], body["tool_choice"]) == ([TOOL], "auto")
+
+
+# the error body each provider documents, as the transport hands it over
+PROVIDER_ERRORS = [
+    ("groq", {"error": {"message": "Rate limit reached for model", "type": "tokens", "code": "rate_limit_exceeded"}}),
+    ("cerebras", {"message": "Rate limit reached for model", "type": "too_many_tokens_error", "code": "quota"}),
+    ("gemini", {"errors": [{"error": {"code": 429, "message": "Rate limit reached for model", "status": "X"}}]}),
+    ("openrouter", {"error": {"message": "Rate limit reached for model", "code": 429}}),
+]
+
+
+@pytest.mark.parametrize(("name", "body"), PROVIDER_ERRORS)
+def test_each_providers_error_message_is_surfaced_without_the_token(name: str, body: dict[str, Any]) -> None:
+    variable = next(v for n, v, _u, _m in FREE_TIERS if n == name)
+    transport = Scripted([(429, body)] * 4)
+    llm = BY_NAME[name].client({variable: "secret-token"}, LOCK, transport, sleep=lambda _s: None)
+    with pytest.raises(LLMError, match="HTTP 429: Rate limit reached for model") as err:
+        llm.chat([], tools=[])
+    assert "secret-token" not in str(err.value)
+    assert len(transport.requests) == 4
+
+
+def test_groq_takes_its_key_from_either_variable() -> None:
+    groq = BY_NAME["groq"]
+    assert groq.token({"GROQ_KEY": "a"}) == "a"
+    assert groq.token({"GROQ_API_KEY": "b"}) == "b"
+    assert groq.token({"GROQ_KEY": "a", "GROQ_API_KEY": "b"}) == "a"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://api.cloudflare.com/client/v4/accounts/a/ai/v1/chat/completions",
+        "https://api.cohere.com/compatibility/v1/chat/completions",
+        *(url for _n, _v, url, _m in FREE_TIERS),
+    ],
+)
+def test_the_real_transport_opens_each_provider_origin(url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    opened = Opened()
+    monkeypatch.setattr(urllib.request, "urlopen", opened)
+    https_transport(url, {}, b"{}")
+    assert [r.full_url for r in opened.requests] == [url]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://api.groq.com.evil.example/openai/v1/chat/completions",
+        "http://api.groq.com/openai/v1/chat/completions",
+        "https://evil.example/https://api.cerebras.ai/v1/chat/completions",
+        "https://openrouter.ai.evil.example/api/v1/chat/completions",
+        "https://generativelanguage.googleapis.com.evil.example/v1beta/openai/",
+        "https://api.openai.com/v1/chat/completions",
+        "https://api.anthropic.com/v1/messages",
+    ],
+)
+def test_the_real_transport_refuses_lookalike_and_other_origins(url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    opened = Opened()
+    monkeypatch.setattr(urllib.request, "urlopen", opened)
+    with pytest.raises(LLMError, match="origin"):
+        https_transport(url, {}, b"{}")
+    assert opened.requests == []

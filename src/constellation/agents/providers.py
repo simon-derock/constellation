@@ -52,6 +52,22 @@ PROVIDERS = (
         ("CLOUDFLARE_API_TOKEN",),
         account="CLOUDFLARE_ACCOUNT_ID",
     ),
+    Provider(
+        "groq", "https://api.groq.com/openai/v1/chat/completions", "openai/gpt-oss-120b", ("GROQ_KEY", "GROQ_API_KEY")
+    ),
+    Provider("cerebras", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b", ("CEREBRAS_API_KEY",)),
+    Provider(
+        "gemini",
+        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "gemini-3.5-flash-lite",
+        ("GEMINI_API_KEY",),
+    ),
+    Provider(
+        "openrouter",
+        "https://openrouter.ai/api/v1/chat/completions",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        ("OPENROUTER_API_KEY",),
+    ),
 )
 
 BY_NAME = {p.name: p for p in PROVIDERS}
