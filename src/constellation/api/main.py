@@ -1,6 +1,6 @@
 import os
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 
 import uvicorn
@@ -8,8 +8,7 @@ from falkordb import FalkorDB
 from fastapi import FastAPI
 
 from constellation.actions.sinks import GitHubIssueSink, Sink
-from constellation.agents.epistemic import LLM
-from constellation.agents.llm import CohereChat, LLMError, ModelLock, WorkersAI
+from constellation.agents.providers import llm_factory as _llm_factory
 from constellation.api.app import Settings, Tenant, create_app
 from constellation.brain.roles import roles_from_config
 from constellation.graph.read import ReadPort
@@ -53,23 +52,6 @@ def real_sink_from_env(env: Mapping[str, str]) -> Sink | None:
     if not token or not key:
         return None
     return GitHubIssueSink(env.get("ACTIONS_REPO", "simon-derock/constellation"), token)
-
-
-def _llm_factory(env: Mapping[str, str]) -> Callable[[], LLM]:
-    # a Cohere chat key wins when set; Workers AI is the fallback, each with its own pinned model
-    cohere = env.get("COHERE_CHAT_KEY") or env.get("CH")
-    account, token = env.get("CLOUDFLARE_ACCOUNT_ID"), env.get("CLOUDFLARE_API_TOKEN")
-    default = "command-a-03-2025" if cohere else "@cf/openai/gpt-oss-20b"
-    lock = ModelLock(env.get("MODEL", default), temperature=0.0, max_tokens=1_024)
-
-    def make() -> LLM:
-        if cohere:
-            return CohereChat("", cohere, lock)
-        if not account or not token:
-            raise LLMError("no model credentials configured")
-        return WorkersAI(account, token, lock)
-
-    return make
 
 
 def create() -> FastAPI:
