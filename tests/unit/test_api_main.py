@@ -60,6 +60,42 @@ def test_a_malformed_actions_repository_is_refused_at_startup() -> None:
         real_sink_from_env({"APPROVER_KEY": "k", "GITHUB_ACTIONS_TOKEN": "t", "ACTIONS_REPO": "../x"})
 
 
+def limits(env: dict[str, str]) -> tuple[int, int]:
+    settings = settings_from_env(env)
+    return settings.asks_per_minute, settings.asks_per_day
+
+
+def test_ask_limits_default_to_the_api_defaults_without_a_groq_key() -> None:
+    assert limits({}) == (6, 150)
+    assert limits({"CEREBRAS_API_KEY": "k"}) == (6, 150)
+    assert limits({"COHERE_CHAT_KEY": "k"}) == (6, 150)
+
+
+@pytest.mark.parametrize("env", [{"GROQ_KEY": "k"}, {"GROQ_API_KEY": "k"}, {"GROQ_KEY": "k", "CEREBRAS_API_KEY": "k"}])
+def test_ask_limits_shrink_to_groqs_free_allowance_when_groq_answers(env: dict[str, str]) -> None:
+    assert limits(env) == (2, 45)
+
+
+def test_a_named_provider_decides_which_ask_limits_apply() -> None:
+    assert limits({"GROQ_KEY": "k", "CEREBRAS_API_KEY": "k", "MODEL_PROVIDER": "cerebras"}) == (6, 150)
+    assert limits({"MODEL_PROVIDER": "groq"}) == (2, 45)
+
+
+def test_explicit_ask_limits_override_the_groq_defaults_one_by_one() -> None:
+    assert limits({"GROQ_KEY": "k", "ASKS_PER_MINUTE": "5"}) == (5, 45)
+    assert limits({"GROQ_KEY": "k", "ASKS_PER_DAY": "100"}) == (2, 100)
+    assert limits({"GROQ_KEY": "k", "ASKS_PER_MINUTE": "", "ASKS_PER_DAY": ""}) == (2, 45)
+
+
+def test_groqs_ask_limits_stay_inside_its_measured_free_allowance() -> None:
+    # one Ask is about 4 model calls and 3,800 tokens; Groq's gpt-oss-120b allows 8,000 tokens a minute,
+    # 200,000 a day and 1,000 requests a day
+    per_minute, per_day = limits({"GROQ_KEY": "k"})
+    assert per_minute * 3_800 <= 8_000
+    assert per_day * 3_800 <= 200_000
+    assert per_day * 4 <= 1_000
+
+
 def test_the_live_tenant_is_configured_and_never_takes_questions() -> None:
     live = settings_from_env({}).tenants["falkordb"]
     assert (live.graph, live.live, dict(live.roles)) == ("brain:falkordb", True, {})
