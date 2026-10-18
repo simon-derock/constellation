@@ -30,7 +30,12 @@ def _origins(raw: str) -> tuple[str, ...]:
 def settings_from_env(env: Mapping[str, str]) -> Settings:
     roles = roles_from_config(Path("third_party/orgforge/config.yaml"))
     return Settings(
-        tenants={"apex": Tenant("apex", env.get("APEX_GRAPH", "brain:apex"), "Apex Athletics (OrgForge)", roles)},
+        tenants={
+            "apex": Tenant("apex", env.get("APEX_GRAPH", "brain:apex"), "Apex Athletics (OrgForge)", roles),
+            "falkordb": Tenant(
+                "falkordb", env.get("LIVE_GRAPH", "brain:falkordb"), "FalkorDB on GitHub (live)", {}, live=True
+            ),
+        },
         allowed_origins=_origins(env.get("ALLOWED_ORIGINS", "")),
         published=Path(env.get("PUBLISHED_DIR", "results/published")),
         asks_per_minute=int(env.get("ASKS_PER_MINUTE", "6")),

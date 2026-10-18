@@ -5,9 +5,9 @@ import pytest
 from constellation.api.main import settings_from_env
 
 
-def test_defaults_are_safe_and_apex_is_the_only_tenant() -> None:
+def test_defaults_are_safe_and_the_two_tenants_are_apex_and_live() -> None:
     settings = settings_from_env({})
-    assert list(settings.tenants) == ["apex"]
+    assert list(settings.tenants) == ["apex", "falkordb"]
     assert settings.tenants["apex"].graph == "brain:apex"
     assert settings.allowed_origins == ()
     assert settings.asks_per_minute <= 10
@@ -58,3 +58,8 @@ def test_a_malformed_actions_repository_is_refused_at_startup() -> None:
 
     with pytest.raises(ValueError, match="repository"):
         real_sink_from_env({"APPROVER_KEY": "k", "GITHUB_ACTIONS_TOKEN": "t", "ACTIONS_REPO": "../x"})
+
+
+def test_the_live_tenant_is_configured_and_never_takes_questions() -> None:
+    live = settings_from_env({}).tenants["falkordb"]
+    assert (live.graph, live.live, dict(live.roles)) == ("brain:falkordb", True, {})
