@@ -6,7 +6,7 @@ from types import ModuleType
 
 import pytest
 
-JOBS = ("redwood_bm25", "redwood_dense", "redwood_full", "redwood_sparse")
+JOBS = ("redwood_bm25", "redwood_dense", "redwood_full", "redwood_sparse", "redwood_rewrite")
 ROOT = Path("jobs/redwood_bm25")
 
 
