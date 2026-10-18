@@ -11,7 +11,18 @@ const SUGGESTION = {
   payload_hash: "a".repeat(64),
   evidence: [],
 };
-const PROPOSED = { id: "a1", kind: "file_issue", title: SUGGESTION.title, body: "", status: "proposed", approver: null, mode: null, result: null, evidence: [], created: "t" };
+const PROPOSED = { id: "a1", kind: "file_issue", title: SUGGESTION.title, body: "", status: "proposed", approver: null, mode: null, result: null, evidence: [], created: "t", provenance: "rule", payload_hash: "b".repeat(64) };
+const BY_AGENT = {
+  ...PROPOSED,
+  id: "g1",
+  title: "Write the postmortem for the Day 8 incident",
+  body: "No postmortem exists.\n\n- Evidence: absence result hash.",
+  evidence: [
+    { name: "absence", params: {}, sha256: "1".repeat(64) },
+    { name: "find_events", params: {}, sha256: "2".repeat(64) },
+  ],
+  provenance: "agent",
+};
 const DRY = {
   ...PROPOSED,
   status: "executed",
@@ -72,6 +83,27 @@ describe("ActionsView", () => {
     expect(screen.queryByRole("button", { name: "Approve and file the issue" })).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Operator key"), "s3cret");
     expect(screen.getByRole("button", { name: "Approve and file the issue" })).toBeInTheDocument();
+  });
+
+  it("labels what the agent proposed and shows the evidence it cited, but not for a rule's action", async () => {
+    serve({ actions: [BY_AGENT, PROPOSED] });
+    show();
+    expect(await screen.findByText("Proposed by the agent")).toBeInTheDocument();
+    expect(screen.getAllByText("Proposed by the agent")).toHaveLength(1);
+    expect(screen.getByText(/No postmortem exists/)).toBeInTheDocument();
+    const cited = screen.getByLabelText("Evidence the agent cited");
+    expect(cited).toHaveTextContent("absence");
+    expect(cited).toHaveTextContent(`${"1".repeat(12)}…`);
+    expect(cited).toHaveTextContent(`${"2".repeat(12)}…`);
+    expect(screen.getByTitle("2".repeat(64))).toBeInTheDocument();
+  });
+
+  it("holds an agent proposal for the same approval as any other action", async () => {
+    serve({ actions: [BY_AGENT] });
+    show();
+    expect(await screen.findByRole("button", { name: "Approve as a dry run" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve and file the issue" })).not.toBeInTheDocument();
+    expect(screen.getByText("proposed")).toBeInTheDocument();
   });
 
   it("says so when the graph suggests nothing", async () => {
