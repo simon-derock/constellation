@@ -8,8 +8,9 @@ from typing import Any, Self
 
 from redis.exceptions import RedisError
 
+from constellation.graph.read import ReadPort
 from constellation.memory.store import MemoryStore
-from constellation.proof import ProofQuery
+from constellation.proof import ProofQuery, replay
 
 _log = logging.getLogger("constellation.memory")
 
@@ -71,11 +72,78 @@ def verdict_of(kind: str, answer: Mapping[str, Any]) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
+def _encode(queries: Sequence[ProofQuery], answer: Mapping[str, Any]) -> list[str]:
+    # a procedure's plan is the proof queries that produced an answer, then the answer they support
+    steps = [{"name": q.name, "params": q.params, "sha256": q.sha256} for q in queries]
+    return [json.dumps(step, sort_keys=True) for step in steps] + [json.dumps(answer, sort_keys=True)]
+
+
+def _decode(plan: Sequence[str]) -> tuple[list[ProofQuery], dict[str, Any]]:
+    *steps, last = plan
+    answer = json.loads(last)
+    queries = [ProofQuery(str(s["name"]), dict(s["params"]), str(s["sha256"])) for s in map(json.loads, steps)]
+    if not isinstance(answer, dict) or not queries:
+        raise ValueError("a stored plan needs queries and an answer")
+    return queries, answer
+
+
+@dataclass(frozen=True, slots=True)
+class Recalled:
+    answer: dict[str, Any]
+    # the stored queries, each replayed on the current graph and found identical
+    queries: list[ProofQuery]
+
+    def response(self, tenant: str, kind: str) -> dict[str, Any]:
+        return {
+            "tenant": tenant,
+            "kind": kind,
+            "answer": self.answer,
+            "recalled": True,
+            "proof": {"queries": [{"name": q.name, "params": q.params, "sha256": q.sha256} for q in self.queries]},
+            "trace": {
+                "stop_reason": "recalled",
+                "strategy_changes": [],
+                "llm_calls": 0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "tools": [],
+            },
+        }
+
+
 class AskMemory:
     # what Ask remembers about a visitor's session, in the public principal's graph
-    def __init__(self, store: MemoryStore) -> None:
-        self._store = store
+    def __init__(self, store: MemoryStore, port: ReadPort) -> None:
+        self._store, self._port = store, port
         self.graph = store.provision(PRINCIPAL)
+
+    def recall(self, session: str, asked: Asked, graph: str) -> Recalled | None:
+        def holds(plan: list[str]) -> bool:
+            # the stored answer is a hypothesis: it stands only if every stored query still returns the same bytes
+            try:
+                queries, _answer = _decode(plan)
+                return replay(self._port, graph, queries).all_match
+            except (ValueError, KeyError, TypeError, RedisError):
+                return False
+
+        try:
+            plan = self._store.reuse_procedure(PRINCIPAL, asked.key, holds)
+        except (RedisError, ValueError):
+            # an unreadable plan is no plan: the fresh answer that follows replaces it
+            _log.warning("memory read failed; answering fresh", exc_info=True)
+            return None
+        if plan is None:
+            return None
+        queries, answer = _decode(plan)
+        decided = verdict_of(asked.kind, answer)
+        if decided is None:
+            return None
+        # a recall is a fresh confirmation by replay, so it counts as an episode of its own
+        try:
+            self._record(session, asked, decided, queries)
+        except RedisError:
+            _log.warning("memory write failed; the answer is returned without it", exc_info=True)
+        return Recalled(answer, queries)
 
     def learn(
         self,
@@ -90,6 +158,7 @@ class AskMemory:
             return
         try:
             self._record(session, asked, decided, queries)
+            self._store.save_procedure(PRINCIPAL, asked.key, _encode(queries, answer))
         except RedisError:
             # memory is an addition to an answer already in hand: losing it must not lose the answer
             _log.warning("memory write failed; the answer is returned without it", exc_info=True)
