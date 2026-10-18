@@ -1907,3 +1907,53 @@ ul.actions .label {
   background: color-mix(in oklab, var(--rule) 40%, transparent);
   border-radius: 2px;
 }
+
+.blog-figure {
+  display: block;
+  width: calc(100% + 8rem);
+  max-width: min(60rem, 92vw);
+  margin: 2.4rem 0 0.7rem 50%;
+  transform: translateX(-50%);
+  border: 1px solid var(--rule);
+}
+.blog-caption {
+  margin: 0 0 1rem;
+  font-family: var(--font-ui);
+  font-size: 0.7rem !important;
+  line-height: 1.6 !important;
+  letter-spacing: 0.04em;
+  color: var(--ink-2) !important;
+}
+.blog-table {
+  margin: 1.2rem 0 0.4rem;
+  border-top: 1px solid var(--rule);
+}
+.blog-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 0.4rem 1.2rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.blog-row p {
+  margin: 0;
+  font-size: 0.82rem !important;
+  line-height: 1.55 !important;
+}
+.blog-row .blog-q {
+  font-family: var(--font-display);
+  font-size: 1.05rem !important;
+}
+.blog-row .blog-how {
+  color: var(--ink-2) !important;
+}
+@media (max-width: 760px) {
+  .blog-figure {
+    width: 100%;
+    margin-left: 0;
+    transform: none;
+  }
+  .blog-row {
+    grid-template-columns: 1fr;
+  }
+}
