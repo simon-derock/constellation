@@ -203,6 +203,107 @@ def test_a_value_at_the_cap_is_stored_whole(server: FastMCP) -> None:
     assert call(server, "recall", {"principal": "alice", "key": "big"})["value"] == value
 
 
+def episode(server: FastMCP, principal: str, subject: str, value: str, *evidence: str) -> dict[str, Any]:
+    args = {"principal": principal, "task": "t", "subject": subject, "value": value, "evidence": list(evidence)}
+    return call(server, "record_episode", args)
+
+
+@pytest.mark.ac("AC-T2-01")
+def test_consolidation_through_the_tool_needs_agreeing_episodes_and_returns_their_evidence(server: FastMCP) -> None:
+    assert episode(server, "alice", "billing owner", "Sam", "ENG-1") == {"recorded": True, "subject": "billing owner"}
+    assert call(server, "learned", {"principal": "alice"}) == {"new": [], "truncated": False, "facts": []}
+    episode(server, "alice", "billing owner", "Sam", "slack-9", "ENG-1")
+    episode(server, "alice", "search owner", "Priya", "ENG-3")
+    episode(server, "alice", "search owner", "Yusuf", "ENG-4")
+    first = call(server, "learned", {"principal": "alice"})
+    assert first["new"] == ["billing owner"]
+    assert first["facts"] == [
+        {
+            "key": "sem:billing owner",
+            "subject": "billing owner",
+            "value": "Sam",
+            "support": 2,
+            "evidence_count": 2,
+            "evidence": ["ENG-1", "slack-9"],
+        }
+    ]
+    # consolidation is idempotent: asking again learns nothing new and returns the same facts
+    again = call(server, "learned", {"principal": "alice"})
+    assert (again["new"], again["facts"]) == ([], first["facts"])
+    assert call(server, "recall", {"principal": "alice", "key": "sem:billing owner"}) == {
+        "key": "sem:billing owner",
+        "found": True,
+        "value": "Sam",
+        "version": 1,
+    }
+
+
+@pytest.mark.ac("AC-T2-01")
+def test_a_later_disagreeing_episode_does_not_change_what_was_learned_or_its_evidence(server: FastMCP) -> None:
+    episode(server, "alice", "owner", "Sam", "e1")
+    episode(server, "alice", "owner", "Sam", "e2")
+    call(server, "learned", {"principal": "alice"})
+    episode(server, "alice", "owner", "Priya", "e3")
+    (fact,) = call(server, "learned", {"principal": "alice"})["facts"]
+    assert (fact["value"], fact["evidence"]) == ("Sam", ["e1", "e2"])
+
+
+@pytest.mark.ac("AC-T2-01")
+def test_the_learned_list_is_bounded_and_says_when_it_was_cut(server: FastMCP) -> None:
+    for subject in ("a", "b", "c"):
+        episode(server, "alice", subject, "v", "e1")
+        episode(server, "alice", subject, "v", "e2")
+    result = call(server, "learned", {"principal": "alice", "limit": 2})
+    assert [f["subject"] for f in result["facts"]] == ["a", "b"]
+    assert result["truncated"] is True
+    with pytest.raises(ToolError):
+        call(server, "learned", {"principal": "alice", "limit": 51})
+
+
+@pytest.mark.ac("AC-T2-05")
+def test_episodes_in_one_principal_teach_another_nothing_and_learning_makes_no_graph(
+    falkordb: FalkorDB, tenant: str
+) -> None:
+    server = serve(falkordb, tenant)
+    episode(server, "alice", "owner", "Sam", "e1")
+    episode(server, "alice", "owner", "Sam", "e2")
+    episode(server, "bob", "owner", "Sam", "e3")
+    assert call(server, "learned", {"principal": "bob"})["facts"] == []
+    assert call(server, "learned", {"principal": "ghost"}) == {"new": [], "truncated": False, "facts": []}
+    assert MemoryStore(falkordb, tenant).principals() == ["alice", "bob"]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"evidence": []},
+        {"evidence": ["e"] * 21},
+        {"evidence": ["x" * 201]},
+        {"evidence": [""]},
+        {"value": "v" * 4_001},
+        {"subject": ""},
+        {"subject": "s" * 129},
+        {"task": "t" * 129},
+        {"evidence": "ENG-1"},
+    ],
+)
+def test_record_episode_refuses_what_exceeds_a_cap_or_cites_nothing(
+    falkordb: FalkorDB, tenant: str, args: dict[str, Any]
+) -> None:
+    base = {"principal": "alice", "task": "t", "subject": "s", "value": "v", "evidence": ["e"]}
+    with pytest.raises(ToolError):
+        call(serve(falkordb, tenant), "record_episode", {**base, **args})
+    assert MemoryStore(falkordb, tenant).principals() == []
+
+
+def test_episodes_at_the_caps_are_stored(falkordb: FalkorDB, tenant: str) -> None:
+    server = serve(falkordb, tenant)
+    for _ in range(2):
+        episode(server, "alice", "s" * 128, "é" * 4_000, *[f"{n:03d}" + "x" * 197 for n in range(20)])
+    (fact,) = call(server, "learned", {"principal": "alice"})["facts"]
+    assert (fact["value"], fact["evidence_count"]) == ("é" * 4_000, 20)
+
+
 @pytest.mark.ac("AC-INV-06")
 def test_memory_tools_are_absent_without_a_store_and_no_tool_chooses_a_graph_or_a_tenant(falkordb: FalkorDB) -> None:
     async def names(server: FastMCP) -> dict[str, Any]:
@@ -211,9 +312,12 @@ def test_memory_tools_are_absent_without_a_store_and_no_tool_chooses_a_graph_or_
 
     bare = asyncio.run(names(build_server(ReadPort(falkordb), "brain:none")))
     full = asyncio.run(names(serve(falkordb, "t0")))
-    assert not {"remember", "recall"} & set(bare)
-    assert {"remember", "recall"} <= set(full)
+    memory_tools = {"remember", "recall", "record_episode", "learned"}
+    assert not memory_tools & set(bare)
+    assert memory_tools <= set(full)
     for tool in full.values():
         assert not {"graph", "cypher", "query", "tenant"} & set(tool.input_schema["properties"]), tool.name
     assert full["recall"].annotations.read_only_hint is True
-    assert full["remember"].annotations.read_only_hint is False
+    assert all(full[name].annotations.read_only_hint is False for name in memory_tools - {"recall"})
+    assert full["remember"].annotations.destructive_hint is True
+    assert full["record_episode"].annotations.destructive_hint is False

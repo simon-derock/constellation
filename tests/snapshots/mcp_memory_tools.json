@@ -1,5 +1,32 @@
 [
   {
+    "description": "Consolidate a principal's episodes and return everything it has learned. A subject is learned only from two or more episodes that agree on the value and none that disagree; each learned fact comes with the evidence of the agreeing episodes and can be read back with recall under its key.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "principal": {
+          "description": "whose memory graph: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "principal"
+      ],
+      "type": "object"
+    },
+    "name": "learned",
+    "read_only": false
+  },
+  {
     "description": "Read a fact from a principal's memory with its version (found=false, version 0 when absent).",
     "input": {
       "additionalProperties": false,
@@ -26,6 +53,58 @@
     },
     "name": "recall",
     "read_only": true
+  },
+  {
+    "description": "Record what happened on one task: a subject, the value found and the ids of the evidence for it. Episodes are never changed or removed; learned consolidates them.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "description": "ids that support the value: artifact ids, proof hashes",
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        },
+        "principal": {
+          "description": "whose memory graph: a-z, 0-9, - and _",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "type": "string"
+        },
+        "subject": {
+          "description": "what the episode is about; episodes agree only on exact text",
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "task": {
+          "description": "the task this episode came from",
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 4000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "principal",
+        "task",
+        "subject",
+        "value",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "name": "record_episode",
+    "read_only": false
   },
   {
     "description": "Write a fact into a principal's memory by compare-and-set. expected_version 0 creates the fact; otherwise it must be the version last read. A stale version never overwrites: the result says ok=false with the current version and value, so the caller can merge and retry. Names starting 'sem:' belong to consolidation.",
