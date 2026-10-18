@@ -25,10 +25,20 @@ Principal = Annotated[
 ]
 FactKey = Annotated[str, Field(min_length=1, max_length=128, description="a fact's name")]
 FactValue = Annotated[str, Field(max_length=4_000)]
+Task = Annotated[str, Field(min_length=1, max_length=128, description="the task this episode came from")]
+Subject = Annotated[
+    str, Field(min_length=1, max_length=128, description="what the episode is about; episodes agree only on exact text")
+]
+Evidence = Annotated[
+    list[Annotated[str, Field(min_length=1, max_length=200)]],
+    Field(min_length=1, max_length=20, description="ids that support the value: artifact ids, proof hashes"),
+]
 Version = Annotated[int, Field(ge=0, le=1_000_000_000, description="0 creates; otherwise the version last read")]
 
 # an anonymous caller can address any principal, so the number of graphs it can make is bounded
 MAX_PRINCIPALS = 100
+# the most evidence ids one learned fact returns; evidence_count says how many there are
+MAX_EVIDENCE_SHOWN = 50
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
 
@@ -199,4 +209,51 @@ def _memory_tools(mcp: FastMCP, memory: MemoryStore) -> None:
             "found": fact is not None,
             "value": fact.value if fact else None,
             "version": fact.ver if fact else 0,
+        }
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+        ),
+        description=(
+            "Record what happened on one task: a subject, the value found and the ids of the evidence for it. "
+            "Episodes are never changed or removed; learned consolidates them."
+        ),
+    )
+    def record_episode(
+        principal: Principal, task: Task, subject: Subject, value: FactValue, evidence: Evidence
+    ) -> dict[str, Any]:
+        _has_graph(memory, principal, create=True)
+        memory.record_episode(principal, task, subject, value, evidence)
+        return {"recorded": True, "subject": subject}
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=False
+        ),
+        description=(
+            "Consolidate a principal's episodes and return everything it has learned. A subject is learned only "
+            "from two or more episodes that agree on the value and none that disagree; each learned fact comes "
+            "with the evidence of the agreeing episodes and can be read back with recall under its key."
+        ),
+    )
+    def learned(principal: Principal, limit: Limit = 20) -> dict[str, Any]:
+        if not _has_graph(memory, principal, create=False):
+            return {"new": [], "facts": [], "truncated": False}
+        new = sorted(fact.subject for fact in memory.consolidate(principal))
+        facts = memory.semantic_facts(principal)
+        return {
+            "new": new,
+            "truncated": len(facts) > limit,
+            "facts": [
+                {
+                    "key": f"{SEMANTIC_PREFIX}{f.subject}",
+                    "subject": f.subject,
+                    "value": f.value,
+                    "support": f.support,
+                    "evidence_count": len(f.evidence),
+                    "evidence": list(f.evidence[:MAX_EVIDENCE_SHOWN]),
+                }
+                for f in facts[:limit]
+            ],
         }

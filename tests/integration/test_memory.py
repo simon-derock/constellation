@@ -4,7 +4,7 @@ import uuid
 import pytest
 from falkordb import FalkorDB
 
-from constellation.memory.store import ConflictError, MemoryStore
+from constellation.memory.store import ConflictError, MemoryStore, SemanticFact
 
 pytestmark = pytest.mark.integration
 
@@ -135,6 +135,17 @@ def test_semantic_facts_need_two_agreeing_episodes_and_ignore_contradictions(sto
     made = store.consolidate("alice")
     assert [(f.subject, f.value) for f in made] == [("billing owner", "Sam")]
     assert store.consolidate("alice") == []
+
+
+@pytest.mark.ac("AC-T2-01")
+def test_a_semantic_fact_lists_the_evidence_of_the_episodes_that_agree_with_it(store: MemoryStore) -> None:
+    store.provision("alice")
+    store.record_episode("alice", "t1", subject="owner", value="Sam", evidence=["e2", "e1"])
+    store.record_episode("alice", "t2", subject="owner", value="Sam", evidence=["e2", "e3"])
+    assert store.semantic_facts("alice") == []
+    store.consolidate("alice")
+    store.record_episode("alice", "t3", subject="owner", value="Priya", evidence=["e9"])
+    assert store.semantic_facts("alice") == [SemanticFact("owner", "Sam", 2, ("e1", "e2", "e3"))]
 
 
 @pytest.mark.ac("AC-T2-01")

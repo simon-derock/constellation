@@ -69,10 +69,19 @@ class SemanticFact:
     subject: str
     value: str
     support: int
+    # ids cited by the episodes that agree with the value, sorted: why the fact is believed
+    evidence: tuple[str, ...] = ()
 
 
 def _canonical(state: object) -> str:
     return json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _evidence(lists: object) -> tuple[str, ...]:
+    found: set[str] = set()
+    for raw in lists if isinstance(lists, list) else []:
+        found.update(str(item) for item in json.loads(str(raw)))
+    return tuple(sorted(found))
 
 
 def _check(kind: str, name: str) -> str:
@@ -257,6 +266,15 @@ class MemoryStore:
             if created and created[0][0] is True:
                 made.append(SemanticFact(subject, seen[0], len(seen)))
         return made
+
+    def semantic_facts(self, principal: str) -> list[SemanticFact]:
+        rows = self._q(
+            principal,
+            "MATCH (f:Fact) WHERE f.origin = 'consolidated' "
+            "OPTIONAL MATCH (e:Episode) WHERE e.subject = f.subject AND e.value = f.value "
+            "RETURN f.subject, f.value, f.support, collect(e.evidence) ORDER BY f.subject",
+        )
+        return [SemanticFact(str(r[0]), str(r[1]), int(str(r[2])), _evidence(r[3])) for r in rows]
 
     def save_procedure(self, principal: str, task: str, plan: Sequence[str]) -> None:
         self._q(
