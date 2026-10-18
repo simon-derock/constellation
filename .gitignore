@@ -39,3 +39,10 @@ results/raw/
 .idea/
 .vscode/
 .DS_Store
+
+# generated film assets (reproducible from video/tools)
+video/.cache/
+video/public/audio/
+video/public/shots/
+video/public/timeline.json
+results/cache/
