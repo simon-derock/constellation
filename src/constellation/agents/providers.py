@@ -21,6 +21,9 @@ class Provider:
     # models whose id starts with this take reasoning_effort=low (fewer hidden tokens against a per-minute budget);
     # other models on the same host reject the field
     reasoning_prefix: str = ""
+    # (per minute, per day) asks that keep one Ask, about 4 calls and 3,800 tokens, inside this provider's free
+    # allowance; unset leaves the API's own defaults
+    asks: tuple[int, int] | None = None
 
     def lock(self, model: str = "") -> ModelLock:
         model = model or self.model
@@ -56,6 +59,8 @@ PROVIDERS = (
         "openai/gpt-oss-120b",
         ("GROQ_KEY", "GROQ_API_KEY"),
         reasoning_prefix="openai/gpt-oss",
+        # measured limits for this model: 8,000 tokens a minute, 200,000 a day, 1,000 requests a day
+        asks=(2, 45),
     ),
     Provider("cerebras", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b", ("CEREBRAS_API_KEY",)),
     Provider(
@@ -120,6 +125,12 @@ class _Reporting:
             if err.status in _UNAVAILABLE:
                 self._rest()
             raise
+
+
+def ask_limits(env: Mapping[str, str]) -> tuple[int, int] | None:
+    # sized to the provider that answers first; after a failover the stricter limits just stay in force
+    chain = candidates(env)
+    return chain[0].asks if chain else None
 
 
 def llm_factory(

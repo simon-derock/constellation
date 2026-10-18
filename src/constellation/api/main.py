@@ -8,6 +8,7 @@ from falkordb import FalkorDB
 from fastapi import FastAPI
 
 from constellation.actions.sinks import GitHubIssueSink, Sink
+from constellation.agents.providers import ask_limits
 from constellation.agents.providers import llm_factory as _llm_factory
 from constellation.api.app import Settings, Tenant, create_app
 from constellation.brain.roles import roles_from_config
@@ -30,6 +31,8 @@ def _origins(raw: str) -> tuple[str, ...]:
 
 def settings_from_env(env: Mapping[str, str]) -> Settings:
     roles = roles_from_config(Path("third_party/orgforge/config.yaml"))
+    # unless set, the Ask limits follow what the model provider's free allowance can serve
+    per_minute, per_day = ask_limits(env) or (6, 150)
     return Settings(
         tenants={
             "apex": Tenant("apex", env.get("APEX_GRAPH", "brain:apex"), "Apex Athletics (OrgForge)", roles),
@@ -39,8 +42,8 @@ def settings_from_env(env: Mapping[str, str]) -> Settings:
         },
         allowed_origins=_origins(env.get("ALLOWED_ORIGINS", "")),
         published=Path(env.get("PUBLISHED_DIR", "results/published")),
-        asks_per_minute=int(env.get("ASKS_PER_MINUTE", "6")),
-        asks_per_day=int(env.get("ASKS_PER_DAY", "150")),
+        asks_per_minute=int(env.get("ASKS_PER_MINUTE") or per_minute),
+        asks_per_day=int(env.get("ASKS_PER_DAY") or per_day),
         approver_key=env.get("APPROVER_KEY", ""),
         real_actions_per_day=int(env.get("REAL_ACTIONS_PER_DAY", "3")),
     )
