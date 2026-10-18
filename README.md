@@ -373,7 +373,26 @@ FalkorDB 4.22.1 (digest-pinned). Betweenness centrality is computed with a fixed
 
 ## Running it
 
-Setup instructions land with the first runnable build. The target is a single `docker compose up` that starts FalkorDB, the API and the web app.
+Local setup, tested on Linux with Docker, [uv](https://docs.astral.sh/uv/) and Node 22:
+
+```bash
+# 1. the graph: download the published snapshot (both tenants), check it, and start FalkorDB on it
+mkdir -p data && curl -L -o data/brain.rdb.gz \
+  https://github.com/simon-derock/constellation/releases/download/snapshot-20261018b/brain.rdb.gz
+echo "aae9781f92a2f3d26a9a43401992576e63ae611a9030f65313a7fa54d104ec02  data/brain.rdb.gz" | sha256sum -c
+gunzip -f data/brain.rdb.gz && mv data/brain.rdb data/dump.rdb
+docker run -d --name constellation-fdb -p 6379:6379 -v "$PWD/data:/data" falkordb/falkordb:v4.22.1 \
+  redis-server --loadmodule /var/lib/falkordb/bin/falkordb.so --dir /data --dbfilename dump.rdb
+
+# 2. the API on :8000 (Ask needs COHERE_CHAT_KEY or a Workers AI token; everything else runs without a model)
+uv sync
+ALLOWED_ORIGINS=http://localhost:5173 uv run python -m constellation.api.main
+
+# 3. the web app on :5173
+cd web && npm ci && npm run dev
+```
+
+The optional keys are listed in [docs/DEPLOY.md](docs/DEPLOY.md). Without them, search uses the full-text index alone and the live tenant serves the snapshot unchanged. The `deploy/` image bundles all three for a single-container host.
 
 ## AI assistance
 
