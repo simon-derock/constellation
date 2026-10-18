@@ -59,9 +59,11 @@ def https_transport(url: str, headers: dict[str, str], body: bytes) -> tuple[int
             return response.status, json.load(response)
     except urllib.error.HTTPError as err:
         try:
-            return err.code, json.loads(err.read() or b"{}")
+            body = json.loads(err.read() or b"{}")
         except json.JSONDecodeError:
             return err.code, {}
+        # Gemini sends its error objects as a JSON list
+        return err.code, body if isinstance(body, dict) else {"errors": body}
 
 
 @dataclass
@@ -90,6 +92,9 @@ class ChatClient:
             start = time.perf_counter()
             status, payload = self.transport(self.url, headers, json.dumps(body).encode())
             if status == 200:
+                # OpenRouter reports an upstream failure inside a 200; that is an error, not an answer
+                if not payload.get("choices"):
+                    raise LLMError(f"{self.lock.model} returned no answer: {_provider_error(payload)}")
                 return self._reply(payload, (time.perf_counter() - start) * 1_000)
             if status not in _RETRYABLE:
                 break
@@ -113,6 +118,13 @@ class ChatClient:
 
 def _provider_error(payload: dict[str, Any]) -> str:
     # provider messages describe the request, never our credentials; capped so a huge body cannot flood logs
-    errors = payload.get("errors") or [payload.get("error") or payload.get("message") or {}]
-    messages = [str(e.get("message", e)) if isinstance(e, dict) else str(e) for e in errors]
+    found = payload.get("errors") or payload.get("error") or payload.get("message") or []
+    messages = [_message(item) for item in (found if isinstance(found, list) else [found])]
     return "; ".join(m for m in messages if m)[:300] or "no error body"
+
+
+def _message(item: Any) -> str:
+    # the text sits at item["message"], item["error"]["message"], or is the item itself
+    if isinstance(item, dict) and isinstance(item.get("error"), dict):
+        item = item["error"]
+    return str(item.get("message", item)) if isinstance(item, dict) else str(item)

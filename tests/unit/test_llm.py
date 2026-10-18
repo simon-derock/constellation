@@ -1,6 +1,8 @@
 import io
 import json
+import urllib.error
 import urllib.request
+from email.message import Message
 from typing import Any
 
 import pytest
@@ -102,6 +104,41 @@ def test_the_real_transport_names_itself_instead_of_urllibs_default_agent(monkey
     request = opened.requests[0]
     assert request.get_header("User-agent") == "constellation/1.0"
     assert request.get_header("Authorization") == "Bearer t"
+
+
+def refusing(code: int, body: bytes) -> Any:
+    # a urlopen that fails the way a provider's HTTP error does, with the body the provider sent
+    def urlopen(request: urllib.request.Request, timeout: float) -> Response:
+        raise urllib.error.HTTPError(request.full_url, code, "refused", Message(), io.BytesIO(body))
+
+    return urlopen
+
+
+def test_an_error_list_from_the_real_transport_is_read_like_any_other_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    gemini = b'[{"error": {"code": 429, "message": "You exceeded your current quota", "status": "RESOURCE_EXHAUSTED"}}]'
+    monkeypatch.setattr(urllib.request, "urlopen", refusing(429, gemini))
+    llm = ChatClient("https://api.cohere.com/x", "secret-token", LOCK, https_transport, sleep=lambda _s: None)
+    with pytest.raises(LLMError, match="HTTP 429: You exceeded your current quota") as err:
+        llm.chat([], tools=[])
+    assert "secret-token" not in str(err.value)
+
+
+def test_a_body_that_is_not_json_still_fails_cleanly(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(urllib.request, "urlopen", refusing(403, b"error code: 1010"))
+    llm = ChatClient("https://api.cohere.com/x", "secret-token", LOCK, https_transport, sleep=lambda _s: None)
+    with pytest.raises(LLMError, match="HTTP 403: no error body"):
+        llm.chat([], tools=[])
+
+
+def test_an_error_inside_a_200_is_an_error_not_an_answer() -> None:
+    body = {"error": {"message": "Provider returned error", "code": 502}}
+    with pytest.raises(LLMError, match="returned no answer: Provider returned error"):
+        client(Scripted([(200, body)])).chat([], tools=[])
+
+
+def test_a_200_without_choices_is_an_error_not_an_answer() -> None:
+    with pytest.raises(LLMError, match="returned no answer: no error body"):
+        client(Scripted([(200, {"choices": []})])).chat([], tools=[])
 
 
 def test_echoed_assistant_messages_carry_only_role_content_and_tool_calls() -> None:
