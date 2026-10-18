@@ -65,3 +65,26 @@ def test_resume_of_a_missing_ledger_is_an_error_not_a_fresh_run(tmp_path: Path) 
 
     with pytest.raises(FileNotFoundError):
         load_completed(tmp_path / "nope.jsonl")
+
+
+@pytest.mark.parametrize("provider", ["workers", "cohere", "groq", "cerebras", "gemini", "openrouter"])
+def test_every_provider_is_a_choice_and_a_missing_key_is_reported_by_name(
+    provider: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from constellation.agents.providers import BY_NAME
+    from constellation.eval.run_epistemic import main
+
+    for variable in (*BY_NAME[provider].keys, BY_NAME[provider].account):
+        monkeypatch.delenv(variable, raising=False)
+    with pytest.raises(SystemExit) as stop:
+        main(["--provider", provider])
+    assert stop.value.code == 2
+    assert f"{provider} needs" in capsys.readouterr().err
+
+
+def test_an_unknown_provider_is_refused_before_anything_runs(capsys: pytest.CaptureFixture[str]) -> None:
+    from constellation.eval.run_epistemic import main
+
+    with pytest.raises(SystemExit):
+        main(["--provider", "openai"])
+    assert "invalid choice" in capsys.readouterr().err
