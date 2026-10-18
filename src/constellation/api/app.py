@@ -28,6 +28,7 @@ from constellation.graph.catalogue import cypher
 from constellation.graph.read import ReadPort
 from constellation.live.embed import Embedder
 from constellation.live.search import hybrid_search
+from constellation.memory.ask import SESSION_PATTERN, Asked, AskMemory
 from constellation.memory.store import ConflictError, MemoryStore
 from constellation.proof import ProofQuery, replay
 
@@ -85,6 +86,8 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=600)
     actor: str | None = Field(default=None, min_length=1, max_length=64)
     day: int | None = Field(default=None, ge=-1_000, le=1_000)
+    # a browser-made id; with it, the answer is remembered in the public memory graph and recalled when it still holds
+    session: str | None = Field(default=None, pattern=SESSION_PATTERN)
 
 
 class ProofQueryIn(BaseModel):
@@ -318,6 +321,7 @@ def create_app(
 
     actions_store = ActionStore(memory) if memory is not None else None
     action_limiter = Limiter(10, 300)
+    ask_memory = AskMemory(memory) if memory is not None else None
 
     @app.post("/api/v1/ask")
     def ask(body: AskRequest, request: Request) -> dict[str, Any]:
@@ -333,6 +337,7 @@ def create_app(
         if not limiter.allow(_caller(request)):
             raise HTTPException(429, "rate limit reached; try again shortly")
         question = Question("live", body.kind, body.question, actor=actor, day=day)
+        asked = Asked.of(tenant.key, body.kind, body.question, actor, day)
         # the Ask path alone may propose actions, and only where actions are enabled; the benchmark never does
         acting = (
             ActingToolbox(
@@ -354,7 +359,7 @@ def create_app(
             raise HTTPException(503, "the model is unavailable right now; recorded runs are still browsable") from err
         proposed = propose_follow_up(llm, acting, question, run) if acting is not None else None
         usage = list(getattr(llm, "usage", []))
-        return {
+        response: dict[str, Any] = {
             "tenant": tenant.key,
             "kind": body.kind,
             "answer": run.answer,
@@ -377,6 +382,9 @@ def create_app(
                 ],
             },
         }
+        if ask_memory is not None and body.session is not None:
+            ask_memory.learn(body.session, asked, run.results, run.answer, tools.queries)
+        return response
 
     @app.post("/api/v1/replay")
     def replay_proof(body: ReplayRequest) -> dict[str, Any]:
