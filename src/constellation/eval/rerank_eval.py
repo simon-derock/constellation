@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from constellation.eval.retrieval import evaluate
+from constellation.retrieval.passages import best_windows
 
 KS = (1, 5, 10, 20, 50, 100)
 
@@ -37,6 +38,32 @@ def rerank_rankings(
     return out
 
 
+def rerank_passage_rankings(
+    candidates: Mapping[str, Sequence[str]],
+    questions: Mapping[str, str],
+    texts: Mapping[str, str],
+    reranker: Reranker,
+    depth: int,
+    per_doc: int,
+    only: Sequence[str] | None = None,
+    on_done: Callable[[str], None] | None = None,
+) -> dict[str, list[str]]:
+    # each candidate is shown to the reranker as its head plus its most query-specific windows; a document ranks where
+    # its best passage ranks, so a long thread is judged by the part that answers, not by its first few paragraphs
+    wanted = [q for q in candidates if only is None or q in only]
+    out: dict[str, list[str]] = {}
+    for qid in wanted:
+        ids = list(candidates[qid][:depth])
+        chosen = best_windows(questions[qid], {i: texts[i] for i in ids}, per_doc)
+        passages = [(f"{i}\x00{n}", w) for i in ids for n, w in enumerate(chosen[i])]
+        ranked = reranker.rerank(questions[qid], passages, top_n=len(passages))
+        seen = dict.fromkeys(pid.split("\x00")[0] for pid, _ in ranked)
+        out[qid] = list(seen)
+        if on_done is not None:
+            on_done(qid)
+    return out
+
+
 def _list(value: object) -> list[str]:
     parsed = ast.literal_eval(value) if isinstance(value, str) else value
     return [str(v) for v in parsed] if isinstance(parsed, list | tuple) else []
@@ -55,6 +82,7 @@ def main() -> int:
     parser.add_argument("--depth", type=int, default=100)
     parser.add_argument("--model", default="rerank-v4.0-pro")
     parser.add_argument("--doc-chars", type=int, default=6_000)
+    parser.add_argument("--passages-per-doc", type=int, default=0, help="0 reranks document heads; N reranks N windows")
     parser.add_argument("--limit", type=int, default=0, help="rerank only the first N scored questions (smoke runs)")
     parser.add_argument("--cache", type=Path, default=Path("results/cache/rerank"))
     parser.add_argument("--out", type=Path, required=True)
@@ -79,7 +107,9 @@ def main() -> int:
         .select("doc_id", "title", "content")
         .collect()
     )
-    texts = {r["doc_id"]: f"{r['title']}\n{r['content'][: args.doc_chars]}" for r in frame.to_dicts()}
+    # passage mode needs the whole document to find the windows; head mode only its first characters
+    limit = 40_000 if args.passages_per_doc else args.doc_chars
+    texts = {r["doc_id"]: f"{r['title']}\n{r['content'][:limit]}" for r in frame.to_dicts()}
     reranker = CohereReranker(key, model=args.model, cache_dir=args.cache)
     done = 0
 
@@ -89,7 +119,12 @@ def main() -> int:
         if done % 20 == 0 or done == len(candidates):
             print(f"reranked {done}/{len(candidates)}", flush=True)
 
-    reranked = rerank_rankings(candidates, text_of_question, texts, reranker, args.depth, on_done=progress)
+    if args.passages_per_doc:
+        reranked = rerank_passage_rankings(
+            candidates, text_of_question, texts, reranker, args.depth, args.passages_per_doc, on_done=progress
+        )
+    else:
+        reranked = rerank_rankings(candidates, text_of_question, texts, reranker, args.depth, on_done=progress)
     subset = {q: gold[q] for q in candidates}
     before = {q: list(candidates[q][: args.depth]) for q in candidates}
     result = {
@@ -97,6 +132,7 @@ def main() -> int:
         "source": args.source,
         "depth": args.depth,
         "doc_chars": args.doc_chars,
+        "passages_per_doc": args.passages_per_doc,
         "questions_reranked": len(candidates),
         "before": evaluate(before, subset, types, ks=KS),
         "after": evaluate(reranked, subset, types, ks=KS),

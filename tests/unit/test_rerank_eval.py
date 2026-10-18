@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from constellation.eval.rerank_eval import rerank_rankings
+from constellation.eval.rerank_eval import rerank_passage_rankings, rerank_rankings
 
 
 class Reverse:
@@ -46,3 +46,16 @@ def test_progress_is_reported_once_per_question() -> None:
     seen: list[str] = []
     rerank_rankings(CANDIDATES, QUESTIONS, TEXTS, Reverse(), depth=4, on_done=seen.append)
     assert seen == ["q1", "q2"]
+
+
+def test_a_document_ranks_where_its_best_passage_ranks() -> None:
+    texts = {"a": "head a " + "x " * 600 + "needle", "b": "head b only"}
+    got = rerank_passage_rankings({"q": ["a", "b"]}, {"q": "needle?"}, texts, Reverse(), depth=2, per_doc=2)
+    # the stand-in prefers later ids, so b's passage outranks every passage of a
+    assert got["q"] == ["b", "a"]
+
+
+def test_each_document_appears_once_however_many_passages_it_sent() -> None:
+    texts = {"a": "head " + "word " * 900, "b": "head"}
+    got = rerank_passage_rankings({"q": ["a", "b"]}, {"q": "word"}, texts, Reverse(), depth=2, per_doc=3)
+    assert sorted(got["q"]) == ["a", "b"]
