@@ -1,6 +1,6 @@
 import json
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,17 +21,19 @@ GRAPH = "brain:apex-ask-memory"
 SESSION = "11111111-aaaa-4bbb-8ccc-222222222222"
 OTHER = "99999999-eeee-4fff-8aaa-000000000000"
 QUESTION = "Was a risk flag raised after the Day 8 incident with Jax?"
-RAISE_FLAG = "MATCH (:Event {eid: 'EVT-8-incident_opened-1219'})-[:EXPECTS]->(x:Expectation) SET x.responded = true"
+EXPECTED = "MATCH (:Event {eid: 'EVT-8-incident_opened-1219'})-[:EXPECTS]->(x:Expectation)"
 ASK = {"tenant": "apex", "kind": "SILENCE", "question": QUESTION, "session": SESSION}
 
 
 @pytest.fixture(scope="module")
-def port(falkordb: FalkorDB) -> ReadPort:
+def port(falkordb: FalkorDB) -> Iterator[ReadPort]:
     if not Path("data/raw/apex").exists():
         pytest.skip("pinned Apex data not fetched")
     falkordb.select_graph(GRAPH).query("MATCH (n) DETACH DELETE n")
     build(falkordb, GRAPH, Path("data/raw/apex"), Path("pins/datasets.json"))
-    return ReadPort(falkordb)
+    yield ReadPort(falkordb)
+    # the shared engine keeps every graph in memory, so this one is dropped when its tests are done
+    falkordb.select_graph(GRAPH).delete()
 
 
 class Model(Scripted):
@@ -84,12 +86,13 @@ class Rig:
 
 
 @pytest.fixture
-def private_graph(port: ReadPort, falkordb: FalkorDB) -> Iterator[str]:
-    # a copy the test may change, so no other test sees the Apex graph differ
-    name = f"{GRAPH}-{uuid.uuid4().hex[:6]}"
-    falkordb.select_graph(GRAPH).copy(name)
-    yield name
-    falkordb.select_graph(name).delete()
+def raise_flag(port: ReadPort, falkordb: FalkorDB) -> Iterator[Callable[[], None]]:
+    # changes what the answer was drawn from, and puts every value back so the tests stay independent
+    graph = falkordb.select_graph(GRAPH)
+    before = graph.query(f"{EXPECTED} RETURN x.response_type, x.responded").result_set
+    yield lambda: graph.query(f"{EXPECTED} SET x.responded = true")
+    for kind, was in before:
+        graph.query(f"{EXPECTED} WHERE x.response_type = $kind SET x.responded = $was", {"kind": kind, "was": was})
 
 
 @pytest.fixture
@@ -144,13 +147,13 @@ def test_a_repeated_question_is_recalled_with_no_model_call_and_a_proof_that_rep
 
 @pytest.mark.ac("AC-T2-01")
 def test_a_recall_is_refused_once_the_graph_no_longer_returns_the_stored_hashes(
-    port: ReadPort, falkordb: FalkorDB, tmp_path: Path, private_graph: str
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path, raise_flag: Callable[[], None]
 ) -> None:
-    rig = Rig(port, falkordb, tmp_path, Model([PLAN, PLAN, PLAN]), private_graph)
+    rig = Rig(port, falkordb, tmp_path, Model([PLAN, PLAN, PLAN]))
     assert rig.ask().json()["answer"]["exists"] is False
     assert rig.ask(session=OTHER).json()["recalled"] is True
     # a risk flag now exists in the graph the answer was drawn from
-    falkordb.select_graph(private_graph).query(RAISE_FLAG)
+    raise_flag()
     changed = rig.ask(session=OTHER).json()
     assert changed["recalled"] is False
     assert changed["answer"]["exists"] is True
@@ -162,11 +165,11 @@ def test_a_recall_is_refused_once_the_graph_no_longer_returns_the_stored_hashes(
 
 @pytest.mark.ac("AC-T2-01")
 def test_an_answer_the_graph_has_contradicted_is_never_learned(
-    port: ReadPort, falkordb: FalkorDB, tmp_path: Path, private_graph: str
+    port: ReadPort, falkordb: FalkorDB, tmp_path: Path, raise_flag: Callable[[], None]
 ) -> None:
-    rig = Rig(port, falkordb, tmp_path, Model([PLAN, PLAN]), private_graph)
+    rig = Rig(port, falkordb, tmp_path, Model([PLAN, PLAN]))
     rig.ask()
-    falkordb.select_graph(private_graph).query(RAISE_FLAG)
+    raise_flag()
     rig.ask()
     rig.ask(session=OTHER)
     assert rig.graph("MATCH (f:Fact) RETURN f.id") == []
