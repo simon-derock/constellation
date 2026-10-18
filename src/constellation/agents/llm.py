@@ -45,13 +45,15 @@ class Reply:
 
 
 _ALLOWED_ORIGINS = ("https://api.cloudflare.com/", "https://api.cohere.com/")
+# Cloudflare-fronted providers (Groq) answer HTTP 403 "error code: 1010" to urllib's default agent
+_USER_AGENT = "constellation/1.0"
 
 
 def https_transport(url: str, headers: dict[str, str], body: bytes) -> tuple[int, dict[str, Any]]:
     # enforced, not assumed: only the providers' https origins are ever opened, so file:// and other schemes cannot be
     if not url.startswith(_ALLOWED_ORIGINS):
         raise LLMError("refusing to open a URL outside the provider origin")
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")  # noqa: S310
+    request = urllib.request.Request(url, data=body, headers={"User-Agent": _USER_AGENT, **headers}, method="POST")  # noqa: S310
     try:
         with urllib.request.urlopen(request, timeout=90) as response:  # noqa: S310  # nosec B310
             return response.status, json.load(response)

@@ -1,4 +1,6 @@
+import io
 import json
+import urllib.request
 from typing import Any
 
 import pytest
@@ -77,6 +79,29 @@ def test_the_token_never_appears_in_errors() -> None:
 def test_the_real_transport_refuses_any_url_outside_the_provider_origin(url: str) -> None:
     with pytest.raises(LLMError, match="origin"):
         https_transport(url, {}, b"{}")
+
+
+class Response(io.BytesIO):
+    status = 200
+
+
+class Opened:
+    # stands in for urlopen: records the request it was given and answers 200 with an empty JSON object
+    def __init__(self) -> None:
+        self.requests: list[urllib.request.Request] = []
+
+    def __call__(self, request: urllib.request.Request, timeout: float) -> Response:
+        self.requests.append(request)
+        return Response(b"{}")
+
+
+def test_the_real_transport_names_itself_instead_of_urllibs_default_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    opened = Opened()
+    monkeypatch.setattr(urllib.request, "urlopen", opened)
+    https_transport("https://api.cohere.com/compatibility/v1/chat/completions", {"Authorization": "Bearer t"}, b"{}")
+    request = opened.requests[0]
+    assert request.get_header("User-agent") == "constellation/1.0"
+    assert request.get_header("Authorization") == "Bearer t"
 
 
 def test_echoed_assistant_messages_carry_only_role_content_and_tool_calls() -> None:
