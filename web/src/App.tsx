@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { AsOfProvider } from "./asof";
+import { BlogView } from "./views/BlogView";
 import { ActionsView } from "./views/ActionsView";
 import { AskView } from "./views/AskView";
 import { HomeView } from "./views/HomeView";
@@ -17,7 +19,18 @@ const SECTIONS = [
   { id: "scoreboard", label: "Scoreboard", view: <ScoreboardView /> },
 ] as const;
 
+// the blog is a page of its own at #/blog; everything else is the single scrolling page
+function routeOf(): "home" | "blog" {
+  return window.location.hash === "#/blog" ? "blog" : "home";
+}
+
 export function App() {
+  const [route, setRoute] = useState(routeOf);
+  useEffect(() => {
+    const onChange = () => setRoute(routeOf());
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
   return (
     <AsOfProvider>
       <header className="top">
@@ -37,12 +50,18 @@ export function App() {
               {s.label}
             </a>
           ))}
+          <a href="#/blog">Blog</a>
           <a href={`${REPO}/tree/main/docs`} className="docs-btn" target="_blank" rel="noreferrer">
             Docs
           </a>
         </nav>
       </header>
       <p className="efficiency">50,000 nodes in 73 MB on one FalkorDB engine, and every answer is a replayable Cypher proof.</p>
+      {route === "blog" ? (
+        <main>
+          <BlogView />
+        </main>
+      ) : (
       <main>
         <section id="top" className="scroll-home">
           <HomeView />
@@ -53,6 +72,7 @@ export function App() {
           </section>
         ))}
       </main>
+      )}
     </AsOfProvider>
   );
 }

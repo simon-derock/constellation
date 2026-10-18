@@ -164,7 +164,9 @@ code {
 }
 
 main {
-  padding: 0 var(--gutter) 14vh;
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: 0 2rem 14vh;
 }
 main[data-view="home"] {
   padding: 0;
@@ -185,9 +187,8 @@ main[data-view="home"] {
 }
 .hero {
   position: relative;
-  max-width: 84rem;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0;
 }
 .hero-copy {
   position: relative;
@@ -245,9 +246,17 @@ main[data-view="home"] {
   color: var(--ink);
   margin-bottom: 0.35rem !important;
 }
+.corner-sub {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
 .corner-tl {
   top: 0.5rem;
-  left: 2rem;
+  left: 1.5rem;
 }
 @media (max-width: 760px) {
   .hero {
@@ -1592,12 +1601,60 @@ ul.actions .body {
   color: var(--ink-2);
 }
 .scroll-section {
-  max-width: 84rem;
   margin: 0 auto;
-  padding: clamp(40px, 8vh, 96px) var(--gutter) 0;
+  padding: clamp(40px, 8vh, 96px) 0 0;
   border-top: 1px solid var(--rule);
 }
 .scroll-section .page,
 .scroll-section .ask {
   padding-top: clamp(24px, 5vh, 64px);
+}
+
+
+/* the blog page at #/blog: one column, the same type as the rest of the site */
+.blog {
+  max-width: 42rem;
+  margin: clamp(48px, 9vh, 110px) auto 0;
+  color: var(--ink);
+}
+.blog-kicker {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin: 0 0 1.2rem;
+}
+.blog h1 {
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  line-height: 1.08;
+  margin-bottom: 1.2rem;
+}
+.blog h2 {
+  font-size: 1.7rem;
+  margin: 2.4rem 0 0.8rem;
+}
+.blog p,
+.blog li {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
+.blog-lede {
+  font-family: var(--font-display);
+  font-size: 1.35rem !important;
+  line-height: 1.45 !important;
+  color: var(--ink-2) !important;
+}
+.blog ul {
+  padding-left: 1.2rem;
+}
+.blog li {
+  margin-bottom: 0.4rem;
+}
+.blog code {
+  font-size: 0.85em;
+  padding: 0 0.2em;
+  background: color-mix(in oklab, var(--rule) 40%, transparent);
+  border-radius: 2px;
 }

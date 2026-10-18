@@ -13,9 +13,9 @@ services:
         value: https://constellation.philipsimonderock.com
       # the snapshot is public and pinned by hash, so it is a plain value rather than a secret
       - key: SNAPSHOT_URL
-        value: https://github.com/simon-derock/constellation/releases/download/snapshot-20261018/brain.rdb.gz
+        value: https://github.com/simon-derock/constellation/releases/download/snapshot-20261018b/brain.rdb.gz
       - key: SNAPSHOT_SHA256
-        value: bf20e3fcc374186f1bd361b63319709d84a91f7470fc397fd73301500496219f
+        value: aae9781f92a2f3d26a9a43401992576e63ae611a9030f65313a7fa54d104ec02
       - key: HOST
         value: 0.0.0.0
       - key: LIVE_SYNC_SECONDS

@@ -33,7 +33,7 @@ export function HomeView() {
 
         <aside className="corner corner-tl" aria-label="Graph Hacks">
           <p className="corner-head">Graph Hacks: Context for AI Agents</p>
-          <p>WeMakeDevs × FalkorDB</p>
+          <p className="corner-sub">WeMakeDevs × FalkorDB</p>
         </aside>
       </header>
 
