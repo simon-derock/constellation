@@ -23,6 +23,7 @@ Everything runs on free tiers. Nothing here needs a credit card except the optio
 | `OPENROUTER_API_KEY` | An OpenRouter key for Ask; pins `nvidia/nemotron-3-super-120b-a12b:free` |
 | `COHERE_CHAT_KEY` | A Cohere trial key for Ask; pins `command-a-03-2025` |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | A Workers AI token (Workers AI → Read and Run); pins `@cf/openai/gpt-oss-20b` |
+| `MODEL_PROVIDER` | Optional: `groq`, `cerebras`, `gemini`, `openrouter`, `cohere` or `workers` to use only that provider instead of the first configured key |
 | `COHERE_KEY` | A Cohere key for query embeddings in live search; without it search uses the full-text index alone |
 | `GITHUB_TOKEN` | Fine-grained token, **public repositories, read-only**. Without it the live tenant serves the snapshot unchanged |
 | `PSEUDONYM_KEY` | The same value that built the snapshot. A different key changes every alias on the next sync |
