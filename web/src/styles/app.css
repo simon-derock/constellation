@@ -185,7 +185,7 @@ main[data-view="home"] {
   position: relative;
   z-index: 10;
   display: flex;
-  min-height: 620px;
+  min-height: 340px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -217,6 +217,11 @@ main[data-view="home"] {
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: var(--ink-2);
+}
+.home-graph {
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: 0 2rem;
 }
 .home-body {
   max-width: 64rem;
@@ -1072,6 +1077,7 @@ ul.actions .body {
   font-size: var(--step--1);
   color: var(--ink-2);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   margin: 0 0 18px;
 }
 .status {
@@ -1146,5 +1152,273 @@ ul.actions .body {
   .top nav a {
     font-size: 0.62rem;
     letter-spacing: 0.24em;
+  }
+}
+
+/* graph stage: the Lunarbit console's plates, menus and inspector, drawn in the active theme's colours */
+.graph-stage {
+  position: relative;
+  width: 100%;
+  max-width: 76rem;
+  margin: clamp(8px, 2vh, 24px) auto 0;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  font-family: var(--font-ui);
+}
+.gs-bar {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.gs-bar-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gs-menu {
+  position: relative;
+}
+.gs-plate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  min-width: 9.5rem;
+  padding: 0 12px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gs-plate:hover {
+  border-color: color-mix(in oklab, var(--rule) 40%, var(--ink));
+}
+.gs-tag {
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.gs-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+}
+.gs-swatches {
+  display: inline-flex;
+  gap: 2px;
+}
+.gs-swatches span {
+  display: inline-block;
+  width: 3px;
+  height: 10px;
+}
+.gs-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 50;
+  width: 17rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  scrollbar-width: none;
+}
+.gs-popover::-webkit-scrollbar {
+  display: none;
+}
+.gs-popover-start {
+  left: 0;
+}
+.gs-popover-end {
+  right: 0;
+}
+.gs-popover button {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gs-popover button:last-child {
+  border-bottom: 0;
+}
+.gs-popover button:hover,
+.gs-popover button[aria-current="true"] {
+  background: color-mix(in oklab, var(--ink) 7%, transparent);
+}
+.gs-mark {
+  width: 0.8rem;
+  font-size: 0.7rem;
+  color: var(--ink);
+}
+.gs-option {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+.gs-option-name {
+  font-size: 0.82rem;
+}
+.gs-option-hint {
+  font-size: 0.72rem;
+  color: var(--ink-2);
+}
+.gs-surface {
+  position: absolute;
+  inset: 0;
+}
+.gs-canvas {
+  position: relative;
+  height: clamp(460px, 72vh, 760px);
+  overflow: hidden;
+}
+.gs-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+.gs-inspector {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  width: min(18rem, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  flex-direction: column;
+  align-items: stretch;
+  height: auto;
+  padding: 14px;
+  cursor: default;
+}
+.gs-inspector-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.gs-close {
+  background: none;
+  border: 0;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.gs-close:hover {
+  color: var(--ink);
+}
+.gs-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.gs-swatch {
+  width: 3px;
+  height: 14px;
+}
+.gs-node-label {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+.gs-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 0 0 12px;
+  font-size: 0.75rem;
+}
+.gs-facts dt {
+  color: var(--ink-2);
+}
+.gs-facts dd {
+  margin: 0;
+}
+.gs-relations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+.gs-relations li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.78rem;
+}
+.gs-relations li:last-child {
+  border-bottom: 0;
+}
+.gs-other {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gs-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px 18px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--rule);
+}
+.gs-hint {
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+.graph-stage .proof {
+  margin: 0;
+  padding: 18px 12px 22px;
+  border-top: 1px solid var(--rule);
+}
+@media (max-width: 640px) {
+  .gs-plate {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .gs-popover {
+    width: min(17rem, calc(100vw - 40px));
+  }
+  .gs-inspector {
+    top: auto;
+    bottom: 10px;
+    right: 10px;
+    max-height: 55%;
   }
 }

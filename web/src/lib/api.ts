@@ -1,3 +1,4 @@
+import type { GraphEdge, GraphNode } from "../graph/types";
 import type { Interval } from "./ownership";
 
 export type Kind = "PERSPECTIVE" | "COUNTERFACTUAL" | "SILENCE";
@@ -147,6 +148,18 @@ export const ownership = (tenant: string) =>
   );
 export const live = (tenant: string, at?: number) =>
   request<LiveResponse>(`/api/v1/live?tenant=${encodeURIComponent(tenant)}${at === undefined ? "" : `&at=${at}`}`);
+export interface GraphViewMeta {
+  id: string;
+  title: string;
+  hint: string;
+  tenant: string;
+}
+
+export const graphViews = () => request<{ views: GraphViewMeta[] }>("/api/v1/graph/views");
+export const graphView = (view: string) =>
+  request<{ view: GraphViewMeta; nodes: GraphNode[]; edges: GraphEdge[]; proof: { queries: ProofQuery[] } }>(
+    `/api/v1/graph?view=${encodeURIComponent(view)}`,
+  );
 export const scoreboard = () => request<{ runs: RunSummary[] }>("/api/v1/scoreboard");
 
 export const suggestions = (tenant: string) =>
