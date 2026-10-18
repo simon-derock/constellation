@@ -634,13 +634,18 @@ export function GraphSurface({ nodes, edges, palette, viz, selectedId, onSelect,
     // Collision-aware placement still declutters dense formations.
     const show = !phone || highSignal;
     if (show && (scale > 0.2 || active)) {
-      const labelSize = active
-        ? Math.max(10, Math.min(14, 8.4 / Math.max(scale, 0.6)))
-        : dense
-          ? Math.max(5.2, Math.min(7.4, 6.8 / Math.max(scale, 0.7)))
-          : Math.max(6.2, Math.min(9.5, 7.6 / Math.max(scale, 0.7)));
+      // labels keep a readable size on screen at any zoom: at least 11 device pixels tall, so they stay sharp
+      const screenFloor = 11 / Math.max(scale, 0.05);
+      const labelSize = Math.max(
+        screenFloor,
+        active
+          ? Math.min(14, 8.4 / Math.max(scale, 0.6))
+          : dense
+            ? Math.min(7.4, 6.8 / Math.max(scale, 0.7))
+            : Math.min(9.5, 7.6 / Math.max(scale, 0.7)),
+      );
       ctx.globalAlpha = (dim ? 0.12 : active ? 1 : 0.78) * intro;
-      ctx.font = `${active ? 500 : 400} ${labelSize}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.font = `${active ? 500 : 400} ${labelSize}px "Geist Mono Variable", ui-monospace, monospace`;
       ctx.textBaseline = "middle";
       const label = n.label?.trim() || n.type || n.id;
       const labelWidth = ctx.measureText(label).width;

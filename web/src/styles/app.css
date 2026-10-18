@@ -7,6 +7,12 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 body {
@@ -1211,6 +1217,8 @@ ul.actions .body {
 /* graph stage: the Lunarbit console's plates, menus and inspector, drawn in the active theme's colours */
 .graph-stage {
   position: relative;
+  /* above the film-grain overlay, so the drawing and its labels stay crisp */
+  z-index: 110;
   width: 100%;
   max-width: 76rem;
   margin: clamp(8px, 2vh, 24px) auto 0;
@@ -1545,4 +1553,51 @@ ul.actions .body {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+
+/* one scrolling page: header brand with the repo icon, one sentence on FalkorDB, sections with a hairline between */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.gh-icon {
+  display: inline-flex;
+  color: var(--header-ink);
+  transition: color 150ms ease;
+}
+.gh-icon:hover {
+  color: var(--ink);
+}
+.docs-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--header-ink);
+  border-radius: 2px;
+  color: var(--header-ink) !important;
+}
+.docs-btn:hover {
+  background: var(--header-ink);
+  color: var(--paper) !important;
+}
+.efficiency {
+  max-width: 46rem;
+  margin: clamp(28px, 5vh, 52px) auto clamp(40px, 7vh, 72px);
+  padding: 0 var(--gutter) 0;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  color: var(--ink-2);
+}
+.scroll-section {
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: clamp(40px, 8vh, 96px) var(--gutter) 0;
+  border-top: 1px solid var(--rule);
+}
+.scroll-section .page,
+.scroll-section .ask {
+  padding-top: clamp(24px, 5vh, 64px);
 }

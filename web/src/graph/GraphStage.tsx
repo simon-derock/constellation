@@ -124,7 +124,7 @@ function Menu({
 export function GraphStage() {
   const views = useQuery({ queryKey: ["graph-views"], queryFn: graphViews, retry: false });
   const [chosen, setChosen] = useState<string | null>(null);
-  const [vizId, setVizId] = useState(VIZ_PROFILES[0]!.id);
+  const [vizId, setVizId] = useState("architectural-constellation");
   const [themeId, setThemeId] = useState(LIGHT_THEMES[0]!.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 

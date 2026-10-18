@@ -82,7 +82,7 @@ export function HomeView() {
           <p className="kicker">Begin</p>
           <h2>Ask, then check.</h2>
           <p className="soft">Pick a question, read the answer, and replay its proof against the graph.</p>
-          <a className="enter" href="#/ask">
+          <a className="enter" href="#ask">
             Ask
           </a>
         </section>

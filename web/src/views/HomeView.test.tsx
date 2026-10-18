@@ -27,7 +27,7 @@ describe("HomeView", () => {
     show();
     expect(screen.getByRole("heading", { level: 1, name: "Constellation" })).toBeInTheDocument();
     expect(screen.getByText("Every answer, with its proof.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ask" })).toHaveAttribute("href", "#/ask");
+    expect(screen.getByRole("link", { name: "Ask" })).toHaveAttribute("href", "#ask");
   });
 
   it("shows the live graph's real counts, summed from what the server reports", async () => {

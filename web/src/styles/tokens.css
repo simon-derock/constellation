@@ -7,8 +7,8 @@
   --ink: oklch(0.22 0.02 255);
   --ink-2: oklch(0.5 0.02 255);
   --gold: oklch(0.62 0.09 80);
-  /* the header's light premium slate: the wordmark and the menu, in place of gold */
-  --header-ink: oklch(0.5 0.03 255);
+  /* the header's light premium sage: the wordmark and the menu */
+  --header-ink: oklch(0.55 0.04 165);
   --gold-bright: oklch(0.8 0.12 85);
   --royal: oklch(0.42 0.14 262);
   --rule: oklch(0.62 0.09 80 / 0.25);
