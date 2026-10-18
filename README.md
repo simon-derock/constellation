@@ -31,7 +31,7 @@ So every answer is a **proof**: the read-only Cypher that ran, its parameters, t
 | Track | What Constellation does |
 |---|---|
 | **03 · Company Brain** | Docs, tickets, chats, code and meetings in one bitemporal graph. Who owned what on any day; who *engaged with* versus who was merely *exposed to* a fact; decisions traced to the exact span; claims superseded as the live tenant changes |
-| **01 · Agents That Act** | A bounded agent whose tools are reviewed Cypher and FalkorDB algorithms served over MCP. It routes, escalates and files issues only after approval, and every step lands in a trace |
+| **01 · Agents That Act** | A bounded agent whose tools are reviewed Cypher and FalkorDB algorithms served over MCP. It routes, escalates and files issues only after approval, and every step lands in a trace. After an answer it may propose one follow-up (say, the postmortem that never happened), citing only the proofs of that run |
 | **02 · Memory and Coordination** | Per-tenant and per-user memory graphs cloned with `GRAPH.COPY`: episodic, semantic and procedural layers, persistent sessions, handoffs, and compare-and-set writes with zero lost updates |
 
 ## Architecture
