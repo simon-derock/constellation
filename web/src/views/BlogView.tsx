@@ -48,7 +48,7 @@ export function BlogView() {
         </li>
       </ul>
       <p>
-        The efficiency number: about 50,000 nodes across both tenants take 73 MB in memory, with the vector and
+        The efficiency number: about 50,000 nodes across both tenants take 74 MB in memory, with the vector and
         full-text indexes included.
       </p>
 

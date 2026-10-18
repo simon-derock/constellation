@@ -56,7 +56,7 @@ export function App() {
           </a>
         </nav>
       </header>
-      <p className="efficiency">50,000 nodes in 73 MB on one FalkorDB engine, and every answer is a replayable Cypher proof.</p>
+      <p className="efficiency">About 50,000 nodes in 74 MB on one FalkorDB engine, and every answer is a replayable Cypher proof.</p>
       {route === "blog" ? (
         <main>
           <BlogView />

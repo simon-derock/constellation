@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { HeroActions } from "../components/HeroActions";
 import { GraphStage } from "../graph/GraphStage";
 import { LiveSearch } from "../graph/LiveSearch";
 import { live } from "../lib/api";
@@ -28,7 +29,8 @@ export function HomeView() {
           <p className="tagline rise" style={{ animationDelay: ".3s" }}>
             Every answer, with its proof.
           </p>
-          <p className="event rise" style={{ animationDelay: ".45s" }}>
+          <HeroActions />
+          <p className="event rise" style={{ animationDelay: ".5s" }}>
             <span className="event-mark" aria-hidden="true" />
             <span className="event-name">Graph Hacks: Context for AI Agents</span>
             <span className="event-by">WeMakeDevs × FalkorDB</span>
