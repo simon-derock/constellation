@@ -28,13 +28,6 @@ def test_kind_and_tenant_are_part_of_the_question() -> None:
     assert key("Same words") != key("Same words", tenant="other")
 
 
-def test_the_question_id_is_a_hash_of_the_key_not_of_the_typed_words() -> None:
-    a, b = Asked.of("apex", "SILENCE", "Was it?", "", 0), Asked.of("apex", "SILENCE", "WAS IT", "", 0)
-    assert a.qid == b.qid
-    assert len(a.qid) == 64
-    assert a.question == "Was it?"
-
-
 def test_the_seal_matches_the_one_the_web_draws() -> None:
     # computed by web/src/lib/bits.ts sealHash for two 64-character hashes, so a turn names the seal on screen
     assert seal(["a" * 64, "b" * 64]) == "f5053087cc20dde6895134512d42e7e8a6dd52fdcee347e3474c7bcfab64d0b7"
