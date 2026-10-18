@@ -44,7 +44,14 @@ class Reply:
     message: dict[str, Any]
 
 
-_ALLOWED_ORIGINS = ("https://api.cloudflare.com/", "https://api.cohere.com/")
+_ALLOWED_ORIGINS = (
+    "https://api.cloudflare.com/",
+    "https://api.cohere.com/",
+    "https://api.groq.com/",
+    "https://api.cerebras.ai/",
+    "https://generativelanguage.googleapis.com/",
+    "https://openrouter.ai/",
+)
 # Cloudflare-fronted providers (Groq) answer HTTP 403 "error code: 1010" to urllib's default agent
 _USER_AGENT = "constellation/1.0"
 
