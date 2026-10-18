@@ -63,17 +63,14 @@ def https_transport(url: str, headers: dict[str, str], body: bytes) -> tuple[int
 
 
 @dataclass
-class WorkersAI:
-    account: str
+class ChatClient:
+    # any OpenAI-compatible chat-completions endpoint with tools; the address is the only thing that differs by provider
+    url: str
     token: str
     lock: ModelLock
     transport: Transport = https_transport
     sleep: Callable[[float], None] = time.sleep
     usage: list[Usage] = field(default_factory=list)
-
-    @property
-    def _url(self) -> str:
-        return f"https://api.cloudflare.com/client/v4/accounts/{self.account}/ai/v1/chat/completions"
 
     def chat(self, messages: Sequence[dict[str, Any]], tools: Sequence[dict[str, Any]]) -> Reply:
         body: dict[str, Any] = {
@@ -89,7 +86,7 @@ class WorkersAI:
         payload: dict[str, Any] = {}
         for attempt in range(_ATTEMPTS):
             start = time.perf_counter()
-            status, payload = self.transport(self._url, headers, json.dumps(body).encode())
+            status, payload = self.transport(self.url, headers, json.dumps(body).encode())
             if status == 200:
                 return self._reply(payload, (time.perf_counter() - start) * 1_000)
             if status not in _RETRYABLE:
@@ -110,15 +107,6 @@ class WorkersAI:
         if calls:
             clean["tool_calls"] = list(calls)
         return Reply(content, calls, clean)
-
-
-@dataclass
-class CohereChat(WorkersAI):
-    # Cohere's OpenAI-compatible endpoint takes the same messages and tools and replies in the same shape, so only the
-    # address differs; the account is unused
-    @property
-    def _url(self) -> str:
-        return "https://api.cohere.com/compatibility/v1/chat/completions"
 
 
 def _provider_error(payload: dict[str, Any]) -> str:

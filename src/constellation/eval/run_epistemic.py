@@ -10,8 +10,9 @@ from typing import Any
 from falkordb import FalkorDB
 
 from constellation.agents.epistemic import AgentRun, Question
-from constellation.agents.llm import CohereChat, LLMError, ModelLock, WorkersAI
+from constellation.agents.llm import ChatClient, LLMError, ModelLock
 from constellation.agents.planner import solve
+from constellation.agents.providers import BY_NAME
 from constellation.agents.toolbox import Perspective, Toolbox
 from constellation.brain.roles import roles_from_config
 from constellation.eval.epistemic import score, summarize, trajectory
@@ -33,7 +34,7 @@ def question_for_agent(raw: Mapping[str, Any]) -> Question:
 
 
 def run_one(
-    llm: WorkersAI, port: ReadPort, graph: str, raw: Mapping[str, Any], roles: Mapping[str, str]
+    llm: ChatClient, port: ReadPort, graph: str, raw: Mapping[str, Any], roles: Mapping[str, str]
 ) -> dict[str, Any]:
     q = question_for_agent(raw)
     perspective = Perspective(q.actor, roles.get(q.actor, "external"), q.day) if q.qtype == "PERSPECTIVE" else None
@@ -87,7 +88,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=6379)
     parser.add_argument("--graph", default="brain:apex")
-    parser.add_argument("--provider", choices=("workers", "cohere"), default="workers")
+    parser.add_argument("--provider", choices=tuple(BY_NAME), default="workers")
     parser.add_argument("--model", help="defaults to the provider's pinned model")
     parser.add_argument("--questions", type=Path, default=Path("data/raw/apex/questions/eval_questions.jsonl"))
     parser.add_argument("--only", nargs="*", default=[], help="question ids to run")
@@ -95,13 +96,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=Path("results/raw"))
     parser.add_argument("--resume", type=Path, help="continue an interrupted run from its ledger")
     args = parser.parse_args(argv)
-    model = args.model or ("command-a-03-2025" if args.provider == "cohere" else "@cf/openai/gpt-oss-20b")
-    lock = ModelLock(model=model, temperature=0.0, max_tokens=1_024)
-    llm = (
-        CohereChat("", os.environ.get("COHERE_CHAT_KEY") or os.environ["CH"], lock)
-        if args.provider == "cohere"
-        else WorkersAI(os.environ["CLOUDFLARE_ACCOUNT_ID"], os.environ["CLOUDFLARE_API_TOKEN"], lock)
-    )
+    provider = BY_NAME[args.provider]
+    lock = ModelLock(model=args.model or provider.model, temperature=0.0, max_tokens=1_024)
+    try:
+        llm = provider.client(os.environ, lock)
+    except LLMError as err:
+        parser.error(str(err))
     port = ReadPort(FalkorDB(host=args.host, port=args.port))
     roles = roles_from_config(Path("third_party/orgforge/config.yaml"))
     questions = [json.loads(line) for line in args.questions.read_text().splitlines()]
