@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://constellation-api.onrender.com/api/:path*" },
+    { "source": "/mcp", "destination": "https://constellation-api.onrender.com/mcp/" },
+    { "source": "/mcp/:path*", "destination": "https://constellation-api.onrender.com/mcp/:path*" },
+    { "source": "/((?!assets/|graph-live\\.png|favicon).*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

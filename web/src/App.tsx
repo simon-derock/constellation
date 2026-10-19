@@ -19,9 +19,10 @@ const SECTIONS = [
   { id: "scoreboard", label: "Scoreboard", view: <ScoreboardView /> },
 ] as const;
 
-// the blog is a page of its own at #/blog; everything else is the single scrolling page
+// the blog is a page of its own at /blog (the older #/blog address still works); everything else is the single scrolling page
 function routeOf(): "home" | "blog" {
-  return window.location.hash === "#/blog" ? "blog" : "home";
+  const { pathname, hash } = window.location;
+  return pathname.replace(/\/+$/, "") === "/blog" || hash === "#/blog" ? "blog" : "home";
 }
 
 export function App() {
@@ -29,8 +30,14 @@ export function App() {
   useEffect(() => {
     const onChange = () => setRoute(routeOf());
     window.addEventListener("hashchange", onChange);
-    return () => window.removeEventListener("hashchange", onChange);
+    window.addEventListener("popstate", onChange);
+    return () => {
+      window.removeEventListener("hashchange", onChange);
+      window.removeEventListener("popstate", onChange);
+    };
   }, []);
+  // from the blog, a section link has to leave the page first
+  const home = route === "blog" ? "/" : "";
   return (
     <AsOfProvider>
       <header className="top">
@@ -40,17 +47,19 @@ export function App() {
               <path d="M12 .7a11.3 11.3 0 0 0-3.57 22c.57.1.78-.25.78-.55v-2.1c-3.18.69-3.85-1.34-3.85-1.34-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.73-1.53-2.54-.29-5.21-1.27-5.21-5.66 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.45.11-3.03 0 0 .96-.31 3.13 1.17A10.9 10.9 0 0 1 12 6c.97 0 1.95.13 2.86.38 2.17-1.48 3.13-1.17 3.13-1.17.62 1.58.23 2.74.11 3.03.73.8 1.18 1.82 1.18 3.07 0 4.4-2.68 5.36-5.23 5.64.41.36.78 1.07.78 2.16v3.2c0 .3.2.66.79.55A11.3 11.3 0 0 0 12 .7Z" fill="currentColor" />
             </svg>
           </a>
-          <a href="#top" className="mark" aria-label="Constellation home">
+          <a href={`${home}#top`} className="mark" aria-label="Constellation home">
             Constellation
           </a>
         </div>
         <nav aria-label="Sections">
           {SECTIONS.map((s) => (
-            <a key={s.id} href={`#${s.id}`}>
+            <a key={s.id} href={`${home}#${s.id}`}>
               {s.label}
             </a>
           ))}
-          <a href="#/blog">Blog</a>
+          <a href="/blog" aria-current={route === "blog" ? "page" : undefined}>
+            Blog
+          </a>
           <a href={`${REPO}/tree/main/docs`} className="docs-btn" target="_blank" rel="noreferrer">
             Docs
           </a>
