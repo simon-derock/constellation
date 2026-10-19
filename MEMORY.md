@@ -10,7 +10,7 @@ Read this first, update it last. Under 80 lines, no secrets, no narrative.
 - **Snapshot:** release `snapshot-20261018` (`brain.rdb.gz`, 6.5 MB, both graphs); image boots in 8 s, 127 MB
 - **Web:** premium redesign shipped (warm paper, Instrument Serif + Geist, grain, parallax ghost word, no blue/gradients); video assets in `video/` still use the old look and must be recaptured last
 - **Retrieval (see docs/audits/2026-10-18-redwood-retrieval-stack.md):** Cohere rerank is the lever (hit@10 0.738→0.881); passages, feedback, Qwen rewrites did not help; ceiling ~0.92. Kaggle GPU: pass `--accelerator NvidiaTeslaT4` or it queues for an hour
-- **Blocked:** Workers AI free neurons exhausted (not reset 40 min after 00:00 UTC); Cohere trial key at its monthly cap. EpistemicBench has 48 of 78 rows; resume with `--resume`.
+- **Models:** Ask runs on the first configured provider (Groq `openai/gpt-oss-120b` first; Groq's free tier is 8,000 tokens/minute, so Ask is capped at 2/min and 45/day by default). EpistemicBench ran in full on Cohere Command A (0.705 accuracy, 0 violations) and is published.
 
 ## Acceptance criteria
 | AC | Status | Evidence |
@@ -35,7 +35,7 @@ Datasets pinned in `pins/datasets.json` (Apex `f2a1ab2`, Redwood `69916e3`); `py
 - Engine 4.22.x primary; 6.0.x smoke only.
 - Hosting: Vercel web + Render free (FalkorDB + API, 512 MB) + GitHub Releases snapshots + D1 journal; Redwood as recorded runs.
 - Embeddings: bge-base-en-v1.5 on Kaggle GPU for the Redwood corpus (compute budget); Qwen3 stays the plan for live queries.
-- LLMs: Workers AI (gpt-oss-20b) live; Cohere second model; both free tiers cap daily/monthly, so the demo caches presets.
+- LLMs: one OpenAI-compatible client over Groq, Cerebras, Gemini, OpenRouter, Cohere and Workers AI (`MODEL_PROVIDER` or first key wins); free tiers cap hard, so a repeated question is recalled from memory after its proof replays, with no model call.
 - Agent actions file `agent-action` issues in this repo; no sandbox repo.
 
 ## Apex facts (profiled 17 Oct)
