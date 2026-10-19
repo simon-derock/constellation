@@ -56,16 +56,25 @@ Every provider is called through its OpenAI-compatible chat-completions endpoint
 
 ## 2. The web app on Vercel
 
-1. **Add New → Project** → this repository. Set **Root Directory** to `web`; the framework preset is Vite.
-2. Environment variable `VITE_API_URL` = the Render service URL, for example `https://constellation-api.onrender.com`.
-3. Domain: add `constellation.philipsimonderock.com` in the project, then create the CNAME record Vercel shows.
-4. In the Render service, `ALLOWED_ORIGINS` already names that domain; add the `*.vercel.app` preview origin if you want previews to call the API.
+1. **Add New → Project** → this repository. Set **Root Directory** to `web`; the framework preset is Vite. Add no environment variables.
+2. `web/vercel.json` does the rest. It rewrites `/api/*` and `/mcp/*` to the Render service, and sends every other path (so `/blog`) to the app. The browser therefore sees one origin, which is also the MCP address shown in the hero.
+3. The rewrites name the service `https://constellation-api.onrender.com`. If Render gives yours another address (the name was taken), edit the three `destination` lines in `web/vercel.json`, and the matching host in its `connect-src`.
 
-## 3. Keeping the free service awake
+## 3. The domain: constellation.philipsimonderock.com
+
+The domain's DNS is on Netlify. In Vercel, open the project → **Settings → Domains** → add `constellation.philipsimonderock.com`. Then in Netlify, **Domains → philipsimonderock.com → DNS records → Add new record**:
+
+| Type | Name | Value |
+|---|---|---|
+| `CNAME` | `constellation` | `cname.vercel-dns.com` (use the exact value Vercel shows if it differs) |
+
+Vercel issues the certificate once the record resolves, usually within minutes. `https://constellation.philipsimonderock.com/blog` then serves the blog, and `https://constellation.philipsimonderock.com/mcp/` is the MCP endpoint.
+
+## 4. Keeping the free service awake
 
 Repository → Settings → Secrets and variables → Actions → **Variables** → `API_URL` = the Render URL. The workflow runs every ten minutes. One always-on service uses about 744 of the 750 free hours in a month.
 
-## 4. Refreshing the snapshot
+## 5. Refreshing the snapshot
 
 ```bash
 scripts/make-snapshot.sh snapshot-YYYYMMDD --upload   # prints SNAPSHOT_URL and SNAPSHOT_SHA256
