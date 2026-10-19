@@ -58,7 +58,7 @@ Every provider is called through its OpenAI-compatible chat-completions endpoint
 
 1. **Add New → Project** → this repository. Set **Root Directory** to `web`; the framework preset is Vite. Add no environment variables.
 2. `web/vercel.json` does the rest. It rewrites `/api/*` and `/mcp/*` to the Render service, and sends every other path (so `/blog`) to the app. The browser therefore sees one origin, which is also the MCP address shown in the hero.
-3. The rewrites name the service `https://constellation-api.onrender.com`. If Render gives yours another address (the name was taken), edit the three `destination` lines in `web/vercel.json`, and the matching host in its `connect-src`.
+3. The rewrites name the service `https://constellation-api-t7up.onrender.com`. If Render gives yours another address (the name was taken), edit the three `destination` lines in `web/vercel.json`, and the matching host in its `connect-src`.
 
 ## 3. The domain: constellation.philipsimonderock.com
 
