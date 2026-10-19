@@ -32,6 +32,6 @@ describe("HeroActions", () => {
   });
 
   it("points at the page's own origin when no API address is configured", () => {
-    expect(mcpUrl()).toBe(`${window.location.origin}/mcp/`);
+    expect(mcpUrl()).toBe(`${window.location.origin}/mcp`);
   });
 });

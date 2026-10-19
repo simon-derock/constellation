@@ -1,9 +1,10 @@
 import { useState } from "react";
 
-// the MCP server is mounted beside the API; in development Vite proxies /mcp, so the page's own origin always works
+// the MCP server is mounted beside the API; in development Vite proxies /mcp, so the page's own origin always works.
+// No trailing slash: the Vercel rewrite matches /mcp, and the API serves it without a redirect from there
 export function mcpUrl(): string {
   const base = import.meta.env.VITE_API_URL || window.location.origin;
-  return `${base.replace(/\/$/, "")}/mcp/`;
+  return `${base.replace(/\/$/, "")}/mcp`;
 }
 
 const CLIENTS = [

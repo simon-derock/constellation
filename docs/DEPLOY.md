@@ -68,7 +68,7 @@ The domain's DNS is on Netlify. In Vercel, open the project → **Settings → D
 |---|---|---|
 | `CNAME` | `constellation` | `cname.vercel-dns.com` (use the exact value Vercel shows if it differs) |
 
-Vercel issues the certificate once the record resolves, usually within minutes. `https://constellation.philipsimonderock.com/blog` then serves the blog, and `https://constellation.philipsimonderock.com/mcp/` is the MCP endpoint.
+Vercel issues the certificate once the record resolves, usually within minutes. `https://constellation.philipsimonderock.com/blog` then serves the blog, and `https://constellation.philipsimonderock.com/mcp` is the MCP endpoint (no trailing slash).
 
 ## 4. Keeping the free service awake
 
