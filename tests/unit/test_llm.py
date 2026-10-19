@@ -503,3 +503,46 @@ def test_the_model_variable_with_a_named_provider_applies_to_it() -> None:
     url, _headers, body = asked(env).requests[0]
     assert url.startswith("https://generativelanguage.googleapis.com/")
     assert body["model"] == "gemini-3.8-flash"
+
+
+JSON_AS_A_TOOL = (
+    400,
+    {
+        "error": {
+            "message": "Tool call validation failed: attempted to call tool 'JSON' which was not in request.tools",
+            "code": "tool_use_failed",
+            "failed_generation": '{"name": "JSON", "arguments": {"exists": false}}',
+        }
+    },
+)
+OWNER_TOOL = {"type": "function", "function": {"name": "owner_as_of", "parameters": {"type": "object"}}}
+
+
+def test_a_final_answer_sent_as_a_call_to_a_tool_that_was_not_offered_is_recovered() -> None:
+    reply = client(Scripted([JSON_AS_A_TOOL])).chat([{"role": "user", "content": "hi"}], [OWNER_TOOL])
+    assert json.loads(reply.content) == {"exists": False}
+    assert reply.tool_calls == ()
+    assert reply.message == {"role": "assistant", "content": reply.content}
+
+
+def test_a_real_tool_whose_call_failed_validation_stays_an_error() -> None:
+    failed = (
+        400,
+        {"error": {"code": "tool_use_failed", "failed_generation": '{"name": "owner_as_of", "arguments": {"day": 1}}'}},
+    )
+    with pytest.raises(LLMError, match="HTTP 400"):
+        client(Scripted([failed])).chat([{"role": "user", "content": "hi"}], [OWNER_TOOL])
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"error": {"code": "invalid_request_error", "failed_generation": '{"name": "JSON", "arguments": {}}'}},
+        {"error": {"code": "tool_use_failed", "failed_generation": "not json"}},
+        {"error": {"code": "tool_use_failed", "failed_generation": '{"name": "JSON", "arguments": "text"}'}},
+        {"error": "tool_use_failed"},
+    ],
+)
+def test_other_bad_requests_are_never_turned_into_answers(payload: dict[str, Any]) -> None:
+    with pytest.raises(LLMError, match="HTTP 400"):
+        client(Scripted([(400, payload)])).chat([{"role": "user", "content": "hi"}], [OWNER_TOOL])

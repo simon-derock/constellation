@@ -120,6 +120,9 @@ class ChatClient:
                 break
             # same model, exponential backoff: a run never changes model mid-question
             self.sleep(2.0**attempt)
+        recovered = _answer_sent_as_a_tool_call(payload, tools) if status == 400 else None
+        if recovered is not None:
+            return recovered
         raise LLMError(f"{self.lock.model} failed with HTTP {status}: {_provider_error(payload)}", status)
 
     def _reply(self, payload: dict[str, Any], latency_ms: float) -> Reply:
@@ -134,6 +137,25 @@ class ChatClient:
         if calls:
             clean["tool_calls"] = list(calls)
         return Reply(content, calls, clean)
+
+
+def _answer_sent_as_a_tool_call(payload: dict[str, Any], tools: Sequence[dict[str, Any]]) -> Reply | None:
+    # gpt-oss on Groq sometimes returns its final JSON answer as a call to a tool called "JSON" and Groq rejects it with
+    # HTTP 400 and the generation attached. When the named tool is not one that was offered, the arguments are the
+    # answer the model meant to give; a real tool whose call failed validation stays an error
+    error = payload.get("error")
+    if not isinstance(error, dict) or error.get("code") != "tool_use_failed":
+        return None
+    try:
+        call = json.loads(str(error.get("failed_generation") or ""))
+    except ValueError:
+        return None
+    if not isinstance(call, dict) or not isinstance(call.get("arguments"), dict):
+        return None
+    if call.get("name") in {str(t.get("function", {}).get("name")) for t in tools}:
+        return None
+    content = json.dumps(call["arguments"], separators=(",", ":"))
+    return Reply(content, (), {"role": "assistant", "content": content})
 
 
 def _provider_error(payload: dict[str, Any]) -> str:
