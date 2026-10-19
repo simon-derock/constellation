@@ -150,6 +150,22 @@ def test_people_are_ranked_by_graph_algorithms_and_the_proof_replays(client: Tes
     assert replays(client, body)
 
 
+def test_a_second_visit_to_the_people_ranking_is_served_without_running_betweenness_again(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = client.get("/api/v1/live/people", params={"tenant": "falkordb"}).json()
+    calls: list[str] = []
+
+    def spy(*_args: object, **_kwargs: object) -> dict[str, object]:
+        calls.append("prove")
+        return {}
+
+    monkeypatch.setattr("constellation.api.app.prove", spy)
+    second = client.get("/api/v1/live/people", params={"tenant": "falkordb"}).json()
+    assert second == first
+    assert calls == []
+
+
 def test_the_collaboration_path_names_the_chain_and_refuses_malformed_aliases(client: TestClient) -> None:
     body = client.get("/api/v1/live/path", params={"tenant": "falkordb", "a": ALICE, "b": BOB}).json()
     assert (body["path"], body["hops"]) == ([ALICE, BOB], 1)

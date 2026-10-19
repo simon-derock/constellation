@@ -301,13 +301,29 @@ def create_app(
             "proof": {"queries": found.proof},
         }
 
+    # betweenness is the one query that spikes engine memory, and its answer only changes when a sync does: one run at a
+    # time, and the result kept for ten minutes, so a crowd costs one spike rather than one each
+    people_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+    people_lock = threading.Lock()
+
     @app.get("/api/v1/live/people")
     def live_people(tenant: str) -> dict[str, Any]:
         graph = live_tenant(tenant).graph
-        central, p1 = block("live_central_people", graph, {"limit": 10})
-        bridges, p2 = block("live_bridge_people", graph, {"limit": 10})
-        components, p3 = block("live_components", graph, {})
-        return {"central": central, "bridges": bridges, "components": components, "proof": {"queries": [p1, p2, p3]}}
+        with people_lock:
+            kept = people_cache.get(graph)
+            if kept is not None and time.monotonic() - kept[0] < 600:
+                return kept[1]
+            central, p1 = block("live_central_people", graph, {"limit": 10})
+            bridges, p2 = block("live_bridge_people", graph, {"limit": 10})
+            components, p3 = block("live_components", graph, {})
+            fresh = {
+                "central": central,
+                "bridges": bridges,
+                "components": components,
+                "proof": {"queries": [p1, p2, p3]},
+            }
+            people_cache[graph] = (time.monotonic(), fresh)
+            return fresh
 
     @app.get("/api/v1/live/path")
     def live_path(

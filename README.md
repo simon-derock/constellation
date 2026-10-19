@@ -271,7 +271,7 @@ LIMIT $limit
 
 ```cypher
 // live_bridge_people: betweenness, with a pinned sample so a run is repeatable
-CALL algo.betweenness({nodeLabels: ['Person'], relationshipTypes: ['COLLABORATES'], samplingSize: 512, samplingSeed: 7}) YIELD node, score
+CALL algo.betweenness({nodeLabels: ['Person'], relationshipTypes: ['COLLABORATES'], samplingSize: 360, samplingSeed: 7}) YIELD node, score
 RETURN node.alias AS person, round(score * 1000) / 1000 AS score
 ORDER BY score DESC, person
 LIMIT $limit
