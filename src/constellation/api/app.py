@@ -301,8 +301,8 @@ def create_app(
             "proof": {"queries": found.proof},
         }
 
-    # betweenness is the one query that spikes engine memory, and its answer only changes when a sync does: one run at a
-    # time, and the result kept for ten minutes, so a crowd costs one spike rather than one each
+    # betweenness spikes engine memory and takes seconds on a small host, and its answer only changes when a sync does:
+    # one run at a time, and the result kept for half an hour, so a crowd costs one run rather than one each
     people_cache: dict[str, tuple[float, dict[str, Any]]] = {}
     people_lock = threading.Lock()
 
@@ -311,7 +311,7 @@ def create_app(
         graph = live_tenant(tenant).graph
         with people_lock:
             kept = people_cache.get(graph)
-            if kept is not None and time.monotonic() - kept[0] < 600:
+            if kept is not None and time.monotonic() - kept[0] < 1_800:
                 return kept[1]
             central, p1 = block("live_central_people", graph, {"limit": 10})
             bridges, p2 = block("live_bridge_people", graph, {"limit": 10})

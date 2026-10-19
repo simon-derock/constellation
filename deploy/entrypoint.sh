@@ -9,7 +9,7 @@ su-exec redis "$PY" -m constellation.deploy.restore --dest "$DATA/dump.rdb"
 
 # no periodic saves and no AOF: a background save forks the process, which a 512 MB host cannot always afford
 su-exec redis redis-server \
-  --loadmodule /var/lib/falkordb/bin/falkordb.so MAX_QUEUED_QUERIES 25 TIMEOUT 5000 RESULTSET_SIZE 10000 \
+  --loadmodule /var/lib/falkordb/bin/falkordb.so MAX_QUEUED_QUERIES 25 TIMEOUT_DEFAULT 5000 TIMEOUT_MAX 45000 RESULTSET_SIZE 10000 \
   --bind 127.0.0.1 --protected-mode yes --port 6379 \
   --dir "$DATA" --dbfilename dump.rdb --save "" --appendonly no --maxmemory 256mb &
 REDIS_PID=$!
